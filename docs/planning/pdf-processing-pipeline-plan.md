@@ -137,7 +137,7 @@ IDs use `TEST-<KIND>-<NNN>`, where `KIND` is `UNIT`, `SCHEMA`, `CONTRACT`, `INTE
 | `TEST-SCHEMA-001` | `AC-RUN-001` | Valid, invalid, and repaired extraction records across admitted pages. | Invalid final output cannot succeed; every page is accounted for; offline; `test-report`. |
 | `TEST-GOLDEN-001` | `AC-CORPUS-002` | Frozen scorer hand cases and eligibility ledger. | Exact ignored-edge, matching, denominator, and tie-break results; authorized corpus preparation; `corpus-verification`. |
 | `TEST-CONTRACT-003` | `AC-PARSER-001` | `parser-conformance-v1` under locked Docling/RapidOCR/ONNX configuration. | Owned hard gates, 300-second limit, telemetry, and no network; authorized Phase 0; `parser-conformance`. |
-| `TEST-CONTRACT-004` | `AC-VLM-001`, `AC-VLM-002` | Six-page frozen VLM matrix, primary then only named fallback if triggered. | Exact request transition, gates, invalid classifications, and fallback routing; authorized Phase 0; `vlm-conformance`. |
+| `TEST-CONTRACT-004` | `AC-VLM-001`, `AC-VLM-002` | Six-page frozen VLM matrix, primary then only named fallback after its candidate-level LIC admission is Go. | Exact request transition, gates, invalid classifications, fallback routing, and rejection of any fallback lacking its linked lock/inventory/admission record; authorized Phase 0; `vlm-conformance`. |
 | `TEST-INTEGRATION-002` | `AC-P0-001` | Six gate records and invalid-run fixtures. | `Cut > Adjust > Go`, `T0 + 48h`, and required fields; authorized Phase 0; `phase0-decision`. |
 | `TEST-E2E-001` | `AC-WALK-001` | Committed one-page synthetic PDF through all actual local stages. | Twelve-step observation, result/evidence/metrics, and no re-execution for cached run; authorized walking run; `walking-vertical`. |
 | `TEST-E2E-002` | `AC-WALK-001` | Duplicate source and fresh process after producer run. | Cached run is distinct, readback succeeds, and basic correctness groups pass; authorized walking run; `walking-vertical`. |
@@ -201,6 +201,22 @@ Before Overall Go, freeze component/artifact/corpus/prompt/schema/scoring/measur
 | WALK | Preserve every non-cuttable walking component/test and complete the decision record by `T0 + 48h`; failure to do so is Adjust unless Cut already prevails. |
 
 Record one final outcome per gate in the fixed `LIC → CORPUS → PARSER → VLM → MACHINE → final LIC reconciliation → WALK` algorithm, including allowed internal fallback routing. Overall Cut stops the current implementation; Overall Adjust stops dependent work, revises the necessary contract, and reruns affected/downstream evidence. Overall Go satisfies the condition for the already-authorized walking scope but does not authorize later hardening, benchmark, or distribution work.
+
+### Frozen VLM fallback routing
+
+Before any fallback request, the candidate-specific LIC admission MUST be Go: its exact server/model/layer/license/provenance lock and inventory are retained, observed acquisition has completed, and the admission record is linked to the VLM matrix. No failed or missing admission may be bypassed.
+
+| Current candidate and first failed gate | Required outcome |
+|---|---|
+| Any candidate: A | Cut that artifact and local VLM extraction from current Phase 0. |
+| 9B: M or L | Admit and test exact `qwen3.5:4b-q4_K_M` under the identical contract. |
+| 4B: M or L | Cut local VLM extraction from the initial implementation. |
+| 9B or 4B: C | Admit and test exact `qwen3-vl:8b-instruct-q4_K_M` under the identical contract. |
+| Qwen3-VL: M, L, C, S, E, or R | Cut local VLM extraction from the initial implementation. |
+| 9B or 4B: S, E, or R | Cut local VLM extraction from the initial implementation. |
+| Any candidate: no failed gate | Go with that candidate as selected and stop comparing. |
+
+An invalid measurement authorizes no fallback. Low evaluated accuracy, evidence failure, preference, context regression, an unmeasured concern, an unlisted candidate, a hosted route, or a silent contract change authorizes no fallback. A named fallback under this table is an internal Gate VLM route; changing its identity or evidence policy is Adjust.
 
 ## Walking vertical and basic correctness
 
