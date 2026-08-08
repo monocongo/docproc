@@ -5,7 +5,7 @@ Document processing pipelines
 
 This repository implements a highly disciplined, spec-driven execution of a modern document processing pipeline. While legacy document pipelines rely on flat text extraction and external cloud dependencies, `docproc` compresses modern paradigms—vision-native parsing, LLM-driven structured extraction, and semantic indexing—into a fiercely governed, local-only "walking vertical."
 
-This architecture prioritizes absolute data sovereignty, offline determinism, and exact evidence over premature scaling.
+This architecture prioritizes local data control, offline-capable operation, and exact evidence over premature scaling.
 
 ### Legacy vs. Modern Architecture
 
@@ -22,15 +22,15 @@ This architecture prioritizes absolute data sovereignty, offline determinism, an
 
 #### 1. The Projection Pattern (State Management)
 
-Pumping extracted JSON directly into a search index often leads to corruption or schema drift that is impossible to cleanly recover from. This architecture mandates SQLite as the authoritative state registry and treats OpenSearch purely as a rebuildable projection. If the search cluster corrupts, the index can be deterministically reconstructed from the SQLite and MinIO sources of truth.
+Pumping extracted JSON directly into a search index often leads to corruption or schema drift that is impossible to cleanly recover from. This architecture uses MinIO as the immutable source-document object store, mandates SQLite as the authoritative processing-state registry, and treats OpenSearch purely as a rebuildable projection. If the search cluster corrupts, its index can be rebuilt from SQLite's processing records and the exact immutable MinIO objects those records reference.
 
-#### 2. Absolute Data Sovereignty
+#### 2. Local Data Sovereignty
 
-By explicitly locking the runtime to local quantized models (e.g., `qwen3.5:9b-q4_K_M`), the pipeline guarantees absolute data privacy and offline capability. To account for the limitations of smaller local models, the pipeline utilizes a strict, mathematically sound fallback routing matrix (e.g., degrading to `4b` or vision-enabled `qwen3-vl` only on specific gate failures) rather than silently dropping data or reaching out to cloud APIs.
+Running quantized models locally (e.g., `qwen3.5:9b-q4_K_M`) supports data privacy and offline operation by avoiding cloud inference; it does not by itself enforce network isolation, disable telemetry, or control storage. The frozen conformance matrix routes a 9B memory or latency failure to `qwen3.5:4b-q4_K_M` and a 9B/4B structured-serving compatibility failure to `qwen3-vl:8b-instruct-q4_K_M`; no other failure triggers a fallback, and no route uses a cloud API.
 
 #### 3. Vision-Native Enforcement
 
-Legacy OCR produces unpredictable text blobs that cause downstream AI to hallucinate. This pipeline enforces Docling with full-page RapidOCR/ONNX while explicitly banning automatic/heuristic OCR fallbacks. By establishing strict timeout limits and hard gates, it ensures the downstream LLM relies on perfectly predictable, structurally intact Markdown/JSON tables every single time.
+Legacy OCR produces unpredictable text blobs that cause downstream AI to hallucinate. This pipeline enforces Docling with full-page RapidOCR/ONNX while explicitly banning automatic/heuristic OCR fallbacks. Parser output advances only after passing the configured structural gates within the 300-second document limit; a hard-gate failure is retained as an Adjust outcome and stops dependent work without an automatic retry or parser/OCR fallback. Individual inference timeouts are recorded without retry, and only eligible gate failures follow the named model routes above.
 
 #### 4. Bounded Execution
 
