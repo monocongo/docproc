@@ -124,32 +124,32 @@ IDs use `TEST-<KIND>-<NNN>`, where `KIND` is `UNIT`, `SCHEMA`, `CONTRACT`, `INTE
 
 | ID | AC / REQ | Population and action | Oracle / mode / evidence |
 |---|---|---|---|
-| `TEST-UNIT-001` | `AC-DOMAIN-001` | Identity/canonicalization vectors; construct Source objects, Documents, requests, and changed definitions. | Exact IDs and incompatibility result; offline; `test-report`. |
-| `TEST-CONTRACT-001` | `AC-ART-001` | Fixed Artifact bytes with forced duplicate and readback. | Create-if-absent, exact version/digest, metadata ordering; offline; `lock-inventory`. |
-| `TEST-CONTRACT-005` | `AC-SCOPE-001`, `AC-SCOPE-004` | Resolved component configuration plus an authorized local-service run with external network denied. | Exactly one worker and six local components; inspect every network-service listener and require loopback-only binding with no hosted/cloud path; `test-report`. |
-| `TEST-CONTRACT-006` | `AC-SCOPE-002` | Blueprint schedule text under a fixed review checklist. | Labels 14 days illustrative and walking target exactly `T0 + 168h`; offline; `test-report`. |
-| `TEST-CONTRACT-007` | `AC-SCOPE-003` | Repository `LICENSE` and operative blueprint license assertions. | Both identify MIT and contain no conflicting operative license; offline; `test-report`. |
-| `TEST-CONTRACT-008` | `AC-CORPUS-001` | Clean clone, ordinary-CI selection, and repository content/dependency scan. | Only cleared synthetic fixtures are used; FUNSD and restricted corpus material are absent; offline; `test-report`. |
-| `TEST-CONTRACT-009` | `AC-LATER-001` | Repository configuration, import, and dependency scan before a later initiative. | No queue/PostgreSQL/Kubernetes/EKS/AWS path exists and the full benchmark remains post-walking; offline; `test-report`. |
-| `TEST-CONTRACT-010` | `AC-ART-002` | Observed prefetch followed by locked parser and VLM measured reruns with egress enforcement. | Every unlisted request/artifact is rejected; both reruns make zero external requests; authorized Phase 0; `lock-inventory`. |
-| `TEST-CONTRACT-002` | `AC-BOUNDARY-001` | Adapter contracts and import graph. | No infrastructure/local-path/process identity crosses a boundary; offline; `test-report`. |
-| `TEST-INTEGRATION-001` | `AC-STORE-001` | Claim/cache races and crash windows against actual local stores. | Fencing, deterministic replay, and rebuildable Projection; authorized local service run; `test-report`. |
-| `TEST-SCHEMA-001` | `AC-RUN-001` | Valid, invalid, and repaired extraction records across admitted pages. | Invalid final output cannot succeed; every page is accounted for; offline; `test-report`. |
-| `TEST-GOLDEN-001` | `AC-CORPUS-002` | Frozen scorer hand cases and eligibility ledger. | Exact ignored-edge, matching, denominator, and tie-break results; authorized corpus preparation; `corpus-verification`. |
-| `TEST-CONTRACT-003` | `AC-PARSER-001` | `parser-conformance-v1` under locked Docling/RapidOCR/ONNX configuration. | Owned hard gates, 300-second limit, telemetry, and no network; authorized Phase 0; `parser-conformance`. |
-| `TEST-CONTRACT-004` | `AC-VLM-001`, `AC-VLM-002` | Six-page frozen VLM matrix, primary then only named fallback after its candidate-level LIC admission is Go. | Exact request transition, gates, invalid classifications, fallback routing, and rejection of any fallback lacking its linked lock/inventory/admission record; authorized Phase 0; `vlm-conformance`. |
-| `TEST-INTEGRATION-002` | `AC-P0-001` | Six gate records and invalid-run fixtures. | `Cut > Adjust > Go`, `T0 + 48h`, and required fields; authorized Phase 0; `phase0-decision`. |
-| `TEST-E2E-001` | `AC-WALK-001` | Committed one-page synthetic PDF through all actual local stages. | Twelve-step observation, result/evidence/metrics, and no re-execution for cached run; authorized walking run; `walking-vertical`. |
-| `TEST-E2E-002` | `AC-WALK-001` | Duplicate source and fresh process after producer run. | Cached run is distinct, readback succeeds, and basic correctness groups pass; authorized walking run; `walking-vertical`. |
-| `TEST-BENCH-001` | `AC-LATER-001` | Complete NAF 77-page test profile after walking acceptance. | Complete accounting and public-report caveats; separately authorized later run; `public-benchmark`. |
-| `TEST-MANUAL-001` | `AC-EVIDENCE-001` | Evidence record and proposed publication pair. | Fixed rubric validates envelope/spec references/classification and that screenshots are not sole evidence; produces `EVID-TEST-001`; a publication case also produces `EVID-DISTRIBUTION-001`. |
-| `TEST-MANUAL-002` | `AC-LATER-001` | A proposed future-distribution initiative after walking acceptance. | Fixed rubric verifies workload/SLO/security/licensing/migration evidence and rejects premature infrastructure; separately authorized later review; `EVID-DISTRIBUTION-001`. |
+| `TEST-UNIT-001` | `AC-DOMAIN-001` | Identity/canonicalization vectors; construct Source objects, Documents, requests, and changed definitions. | Exact IDs and incompatibility result; offline; `EVID-TEST-REPORT-001`. |
+| `TEST-CONTRACT-001` | `AC-ART-001` | Fixed Artifact bytes with forced duplicate and readback. | Create-if-absent, exact version/digest, metadata ordering; offline; `EVID-LOCK-INVENTORY-001`. |
+| `TEST-CONTRACT-005` | `AC-SCOPE-001`, `AC-SCOPE-004` | Resolved component configuration plus an authorized local-service run with external network denied. | Exactly one worker and six local components; inspect every network-service listener and require loopback-only binding with no hosted/cloud path; `EVID-TEST-REPORT-003`. |
+| `TEST-CONTRACT-006` | `AC-SCOPE-002` | Blueprint schedule text under a fixed review checklist. | Labels 14 days illustrative and walking target exactly `T0 + 168h`; offline; `EVID-TEST-REPORT-004`. |
+| `TEST-CONTRACT-007` | `AC-SCOPE-003` | Repository `LICENSE` and operative blueprint license assertions. | Both identify MIT and contain no conflicting operative license; offline; `EVID-TEST-REPORT-005`. |
+| `TEST-CONTRACT-008` | `AC-CORPUS-001` | Clean clone, ordinary-CI selection, and repository content/dependency scan. | Only cleared synthetic fixtures are used; FUNSD and restricted corpus material are absent; offline; `EVID-TEST-REPORT-006`. |
+| `TEST-CONTRACT-009` | `AC-LATER-001` | Repository configuration, import, and dependency scan before a later initiative. | No queue/PostgreSQL/Kubernetes/EKS/AWS path exists and the full benchmark remains post-walking; offline; `EVID-TEST-REPORT-007`. |
+| `TEST-CONTRACT-010` | `AC-ART-002` | Observed prefetch followed by locked parser and VLM measured reruns with egress enforcement. | Every unlisted request/artifact is rejected; both reruns make zero external requests; authorized Phase 0; `EVID-LOCK-INVENTORY-001`. |
+| `TEST-CONTRACT-002` | `AC-BOUNDARY-001` | Adapter contracts and import graph. | No infrastructure/local-path/process identity crosses a boundary; offline; `EVID-TEST-REPORT-008`. |
+| `TEST-INTEGRATION-001` | `AC-STORE-001` | Claim/cache races and crash windows against actual local stores. | Fencing, deterministic replay, and rebuildable Projection; authorized local service run; `EVID-TEST-REPORT-009`. |
+| `TEST-SCHEMA-001` | `AC-RUN-001` | Valid, invalid, and repaired extraction records across admitted pages. | Invalid final output cannot succeed; every page is accounted for; offline; `EVID-TEST-REPORT-010`. |
+| `TEST-GOLDEN-001` | `AC-CORPUS-002` | Frozen scorer hand cases and eligibility ledger. | Exact ignored-edge, matching, denominator, and tie-break results; authorized corpus preparation; `EVID-CORPUS-VERIFICATION-001`. |
+| `TEST-CONTRACT-003` | `AC-PARSER-001` | `parser-conformance-v1` under locked Docling/RapidOCR/ONNX configuration. | Owned hard gates, 300-second limit, telemetry, and no network; authorized Phase 0; `EVID-PARSER-CONFORMANCE-001`. |
+| `TEST-CONTRACT-004` | `AC-VLM-001`, `AC-VLM-002` | Six-page frozen VLM matrix, primary then only named fallback after its candidate-level LIC admission is Go. | Exact request transition, gates, invalid classifications, fallback routing, and rejection of any fallback lacking its linked lock/inventory/admission record; authorized Phase 0; `EVID-VLM-CONFORMANCE-001`. |
+| `TEST-INTEGRATION-002` | `AC-P0-001` | Six gate records and invalid-run fixtures. | `Cut > Adjust > Go`, `T0 + 48h`, and required fields; authorized Phase 0; `EVID-PHASE0-DECISION-001`. |
+| `TEST-E2E-001` | `AC-WALK-001` | Committed one-page synthetic PDF through all actual local stages. | Twelve-step observation, result/evidence/metrics, and no re-execution for cached run; authorized walking run; `EVID-WALKING-VERTICAL-001`. |
+| `TEST-E2E-002` | `AC-WALK-001` | Duplicate source and fresh process after producer run. | Cached run is distinct, readback succeeds, and basic correctness groups pass; authorized walking run; `EVID-WALKING-VERTICAL-001`. |
+| `TEST-BENCH-001` | `AC-LATER-001` | Complete NAF 77-page test profile after walking acceptance. | Complete accounting and public-report caveats; separately authorized later run; `EVID-PUBLIC-BENCHMARK-001`. |
+| `TEST-MANUAL-001` | `AC-EVIDENCE-001` | Evidence record and proposed publication pair. | Fixed rubric validates envelope/spec references/classification and that screenshots are not sole evidence; produces `EVID-TEST-REPORT-011`. |
+| `TEST-MANUAL-002` | `AC-LATER-001` | A proposed future-distribution initiative after walking acceptance. | Fixed rubric verifies workload/SLO/security/licensing/migration evidence and rejects premature infrastructure; separately authorized later review; `EVID-DISTRIBUTION-REVIEW-001`. |
 
 Test doubles establish orchestration and contracts only. They cannot satisfy actual-component Phase 0 or walking acceptance. Ordinary CI remains synthetic-only and offline; heavyweight parser, VLM, NAF, and service checks require their explicitly authorized run and must not publish unsafe artifacts.
 
 ## Evidence contract
 
-Evidence IDs use `EVID-<KIND>-<NNN>`; `<KIND>` is a documented kind and all cross-references use complete IDs. Each immutable, content-addressed machine envelope contains at least:
+Evidence IDs use `EVID-<KIND>-<NNN>`; `<KIND>` exactly spells one documented kind token below with its words joined by hyphens, and all cross-references use complete IDs. Independently retained observations use distinct IDs. Each immutable, content-addressed machine envelope contains at least:
 
 ```text
 evidence_schema_version
@@ -174,15 +174,24 @@ References are full commit SHAs or exact Artifact version-plus-digest, never bra
 
 | Expected Evidence ID / kind | Required future use |
 |---|---|
-| `EVID-LOCK-001` / `lock-inventory` | Packages/native wheels, tools, model/OCR/data/OCI inventory, licenses, notices, SBOM, and distribution disposition. |
-| `EVID-CORPUS-001` / `corpus-verification` | NAF profile, acquisition, split/image/eligibility/scorer checks, and local classification. |
-| `EVID-PARSER-001` / `parser-conformance` | Fixed manifest, hard gates, scorecard, outputs/failures, telemetry, and OCR/configuration. |
-| `EVID-VLM-001` / `vlm-conformance` | Candidate/request/matrix, repairs, schema/evidence/accuracy results, fallbacks, memory, latency, and health. |
-| `EVID-PHASE0-001` / `phase0-decision` | Gate outcomes, invalid runs, precedence, approver, authorization/T0, and deadline. |
-| `EVID-WALK-001` / `walking-vertical` | Twelve-step observations, producer/cached runs, duplicate, fresh-process readback, metrics, and no-reexecution proof. |
-| `EVID-TEST-001` / `test-report` | Exact suite, requirement refs, environment, pass/fail/skip/xfail, and reason. |
-| `EVID-PUBLIC-001` / `public-benchmark` | NAF 77-page profile/accounting, strict ignored-edge behavior, configuration, metrics, exclusions, and caveats. |
-| `EVID-DISTRIBUTION-001` / `distribution-review` | A later workload/SLO/security/licensing/migration decision and its failure evidence. |
+| `EVID-LOCK-INVENTORY-001` / `lock-inventory` | Packages/native wheels, tools, model/OCR/data/OCI inventory, licenses, notices, SBOM, and distribution disposition. |
+| `EVID-CORPUS-VERIFICATION-001` / `corpus-verification` | NAF profile, acquisition, split/image/eligibility/scorer checks, and local classification. |
+| `EVID-PARSER-CONFORMANCE-001` / `parser-conformance` | Fixed manifest, hard gates, scorecard, outputs/failures, telemetry, and OCR/configuration. |
+| `EVID-VLM-CONFORMANCE-001` / `vlm-conformance` | Candidate/request/matrix, repairs, schema/evidence/accuracy results, fallbacks, memory, latency, and health. |
+| `EVID-PHASE0-DECISION-001` / `phase0-decision` | Gate outcomes, invalid runs, precedence, approver, authorization/T0, and deadline. |
+| `EVID-WALKING-VERTICAL-001` / `walking-vertical` | Twelve-step observations, producer/cached runs, duplicate, fresh-process readback, metrics, and no-reexecution proof. |
+| `EVID-TEST-REPORT-001` / `test-report` | Identity and Processing-definition vectors. |
+| `EVID-TEST-REPORT-003` / `test-report` | Local topology and listener observation. |
+| `EVID-TEST-REPORT-004` / `test-report` | Illustrative-schedule and walking-target check. |
+| `EVID-TEST-REPORT-005` / `test-report` | Repository-license consistency check. |
+| `EVID-TEST-REPORT-006` / `test-report` | Clean-clone/ordinary-CI synthetic-only and FUNSD-absence check. |
+| `EVID-TEST-REPORT-007` / `test-report` | Future-infrastructure absence and later-benchmark boundary check. |
+| `EVID-TEST-REPORT-008` / `test-report` | Adapter/import boundary check. |
+| `EVID-TEST-REPORT-009` / `test-report` | Claim/cache/crash/Projection integration check. |
+| `EVID-TEST-REPORT-010` / `test-report` | Page accounting and final-schema check. |
+| `EVID-TEST-REPORT-011` / `test-report` | Evidence-envelope and publication-safety rubric. |
+| `EVID-PUBLIC-BENCHMARK-001` / `public-benchmark` | NAF 77-page profile/accounting, strict ignored-edge behavior, configuration, metrics, exclusions, and caveats. |
+| `EVID-DISTRIBUTION-REVIEW-001` / `distribution-review` | A later workload/SLO/security/licensing/migration decision and its failure evidence. |
 
 Git may contain project-authored/cleared synthetic fixtures, schemas, non-content-bearing manifests, aggregate reports, and safe evidence records. NAF Data/Enhanced Data, ledgers/transcriptions, converted PDFs, image-bearing output, model/OCR weights, OCI archives, and third-party binaries remain outside Git. FUNSD content is absent. Redaction produces a new derived Artifact with its own digest and provenance; it never mutates a record or silently changes an outcome.
 
@@ -246,35 +255,35 @@ There is one row for each normative requirement. A row names Decision evidence, 
 
 | Requirement ID | Decision evidence | AC IDs | Test IDs | Expected Evidence IDs/kinds | Phase |
 |---|---|---|---|---|---|
-| `REQ-SCOPE-001` | `SRC-WALK`, `SRC-EVOLVE` | `AC-SCOPE-001` | `TEST-CONTRACT-005` | `EVID-TEST-001` / `test-report` | walking |
-| `REQ-SCOPE-002` | `SRC-WALK`, `SRC-P0` | `AC-SCOPE-001` | `TEST-CONTRACT-005` | `EVID-TEST-001` / `test-report` | walking |
-| `REQ-SCOPE-003` | `SRC-WALK`, `SRC-P0` | `AC-SCOPE-002` | `TEST-CONTRACT-006` | `EVID-TEST-001` / `test-report` | Phase 0/walking |
-| `REQ-SCOPE-004` | `SRC-LICENSE`, `SRC-TRACE` | `AC-SCOPE-003` | `TEST-CONTRACT-007` | `EVID-TEST-001` / `test-report` | Phase 0/walking/later |
-| `REQ-SCOPE-005` | `SRC-WALK`, `SRC-LICENSE` | `AC-SCOPE-004` | `TEST-CONTRACT-005` | `EVID-TEST-001` / `test-report` | walking |
-| `REQ-DOMAIN-001` | `SRC-EVOLVE` | `AC-DOMAIN-001` | `TEST-UNIT-001` | `EVID-TEST-001` / `test-report` | walking |
-| `REQ-DOMAIN-002` | `SRC-EVOLVE` | `AC-DOMAIN-001` | `TEST-UNIT-001` | `EVID-TEST-001` / `test-report` | walking |
-| `REQ-ART-001` | `SRC-EVOLVE`, `SRC-LICENSE` | `AC-ART-001` | `TEST-CONTRACT-001` | `EVID-LOCK-001` / `lock-inventory` | Phase 0/walking |
-| `REQ-ART-002` | `SRC-LICENSE`, `SRC-P0` | `AC-ART-002` | `TEST-CONTRACT-010` | `EVID-LOCK-001` / `lock-inventory` | Phase 0 |
-| `REQ-CORPUS-001` | `SRC-CORPUS`, `SRC-LICENSE` | `AC-CORPUS-001` | `TEST-CONTRACT-008` | `EVID-TEST-001` / `test-report` | walking/later |
-| `REQ-CORPUS-002` | `SRC-CORPUS`, `SRC-NAF` | `AC-CORPUS-002` | `TEST-GOLDEN-001`, `TEST-BENCH-001` | `EVID-CORPUS-001` / `corpus-verification`; `EVID-PUBLIC-001` / `public-benchmark` | Phase 0/later |
-| `REQ-CORPUS-003` | `SRC-CORPUS`, `SRC-FUNSD` | `AC-CORPUS-001` | `TEST-CONTRACT-008` | `EVID-TEST-001` / `test-report` | walking/later |
-| `REQ-PARSER-001` | `SRC-WALK`, `SRC-PARSER`, `SRC-LICENSE` | `AC-PARSER-001` | `TEST-CONTRACT-003` | `EVID-PARSER-001` / `parser-conformance` | Phase 0 |
-| `REQ-PARSER-002` | `SRC-P0`, `SRC-PARSER` | `AC-PARSER-001` | `TEST-CONTRACT-003` | `EVID-PARSER-001` / `parser-conformance` | Phase 0 |
-| `REQ-VLM-001` | `SRC-VLM`, `SRC-P0`, `SRC-VLM-RESEARCH` | `AC-VLM-001` | `TEST-CONTRACT-004` | `EVID-VLM-001` / `vlm-conformance` | Phase 0 |
-| `REQ-VLM-002` | `SRC-VLM`, `SRC-P0` | `AC-VLM-002` | `TEST-CONTRACT-004` | `EVID-VLM-001` / `vlm-conformance` | Phase 0 |
-| `REQ-RUN-001` | `SRC-WALK`, `SRC-EVOLVE`, `SRC-VLM` | `AC-RUN-001` | `TEST-SCHEMA-001` | `EVID-TEST-001` / `test-report` | walking |
-| `REQ-RUN-002` | `SRC-WALK`, `SRC-EVOLVE` | `AC-RUN-001` | `TEST-E2E-002` | `EVID-WALK-001` / `walking-vertical` | walking |
-| `REQ-STORE-001` | `SRC-EVOLVE`, `SRC-WALK` | `AC-STORE-001` | `TEST-INTEGRATION-001` | `EVID-TEST-001` / `test-report` | walking |
-| `REQ-STORE-002` | `SRC-EVOLVE` | `AC-STORE-001` | `TEST-INTEGRATION-001` | `EVID-TEST-001` / `test-report` | walking |
-| `REQ-BOUNDARY-001` | `SRC-EVOLVE` | `AC-BOUNDARY-001` | `TEST-CONTRACT-002` | `EVID-TEST-001` / `test-report` | walking |
-| `REQ-P0-001` | `SRC-P0`, `SRC-WALK` | `AC-P0-001` | `TEST-INTEGRATION-002` | `EVID-PHASE0-001` / `phase0-decision` | Phase 0 |
-| `REQ-P0-002` | `SRC-P0` | `AC-P0-001` | `TEST-INTEGRATION-002` | `EVID-PHASE0-001` / `phase0-decision` | Phase 0 |
-| `REQ-P0-003` | `SRC-P0`, `SRC-WALK` | `AC-P0-001` | `TEST-INTEGRATION-002` | `EVID-PHASE0-001` / `phase0-decision` | Phase 0 |
-| `REQ-WALK-001` | `SRC-WALK`, `SRC-P0` | `AC-WALK-001` | `TEST-E2E-001` | `EVID-WALK-001` / `walking-vertical` | walking |
-| `REQ-WALK-002` | `SRC-WALK`, `SRC-EVOLVE` | `AC-WALK-001` | `TEST-E2E-002` | `EVID-WALK-001` / `walking-vertical` | walking |
-| `REQ-EVIDENCE-001` | `SRC-TRACE`, `SRC-P0` | `AC-EVIDENCE-001` | `TEST-MANUAL-001` | `EVID-TEST-001` / `test-report` | Phase 0/walking/later |
-| `REQ-EVIDENCE-002` | `SRC-TRACE`, `SRC-CORPUS`, `SRC-LICENSE` | `AC-EVIDENCE-001` | `TEST-MANUAL-001` | `EVID-DISTRIBUTION-001` / `distribution-review` | Phase 0/walking/later |
-| `REQ-LATER-001` | `SRC-CORPUS`, `SRC-WALK` | `AC-LATER-001` | `TEST-BENCH-001`, `TEST-CONTRACT-009` | `EVID-PUBLIC-001` / `public-benchmark` | later hardening |
-| `REQ-LATER-002` | `SRC-EVOLVE`, `SRC-WALK` | `AC-LATER-001` | `TEST-MANUAL-002` | `EVID-DISTRIBUTION-001` / `distribution-review` | later/future distribution |
+| `REQ-SCOPE-001` | `SRC-WALK`, `SRC-EVOLVE` | `AC-SCOPE-001` | `TEST-CONTRACT-005` | `EVID-TEST-REPORT-003` / `test-report` | walking |
+| `REQ-SCOPE-002` | `SRC-WALK`, `SRC-P0` | `AC-SCOPE-001` | `TEST-CONTRACT-005` | `EVID-TEST-REPORT-003` / `test-report` | walking |
+| `REQ-SCOPE-003` | `SRC-WALK`, `SRC-P0` | `AC-SCOPE-002` | `TEST-CONTRACT-006` | `EVID-TEST-REPORT-004` / `test-report` | Phase 0/walking |
+| `REQ-SCOPE-004` | `SRC-LICENSE`, `SRC-TRACE` | `AC-SCOPE-003` | `TEST-CONTRACT-007` | `EVID-TEST-REPORT-005` / `test-report` | Phase 0/walking/later |
+| `REQ-SCOPE-005` | `SRC-WALK`, `SRC-LICENSE` | `AC-SCOPE-004` | `TEST-CONTRACT-005` | `EVID-TEST-REPORT-003` / `test-report` | walking |
+| `REQ-DOMAIN-001` | `SRC-EVOLVE` | `AC-DOMAIN-001` | `TEST-UNIT-001` | `EVID-TEST-REPORT-001` / `test-report` | walking |
+| `REQ-DOMAIN-002` | `SRC-EVOLVE` | `AC-DOMAIN-001` | `TEST-UNIT-001` | `EVID-TEST-REPORT-001` / `test-report` | walking |
+| `REQ-ART-001` | `SRC-EVOLVE`, `SRC-LICENSE` | `AC-ART-001` | `TEST-CONTRACT-001` | `EVID-LOCK-INVENTORY-001` / `lock-inventory` | Phase 0/walking |
+| `REQ-ART-002` | `SRC-LICENSE`, `SRC-P0` | `AC-ART-002` | `TEST-CONTRACT-010` | `EVID-LOCK-INVENTORY-001` / `lock-inventory` | Phase 0 |
+| `REQ-CORPUS-001` | `SRC-CORPUS`, `SRC-LICENSE` | `AC-CORPUS-001` | `TEST-CONTRACT-008` | `EVID-TEST-REPORT-006` / `test-report` | walking/later |
+| `REQ-CORPUS-002` | `SRC-CORPUS`, `SRC-NAF` | `AC-CORPUS-002` | `TEST-GOLDEN-001`, `TEST-BENCH-001` | `EVID-CORPUS-VERIFICATION-001` / `corpus-verification`; `EVID-PUBLIC-BENCHMARK-001` / `public-benchmark` | Phase 0/later |
+| `REQ-CORPUS-003` | `SRC-CORPUS`, `SRC-FUNSD` | `AC-CORPUS-001` | `TEST-CONTRACT-008` | `EVID-TEST-REPORT-006` / `test-report` | walking/later |
+| `REQ-PARSER-001` | `SRC-WALK`, `SRC-PARSER`, `SRC-LICENSE` | `AC-PARSER-001` | `TEST-CONTRACT-003` | `EVID-PARSER-CONFORMANCE-001` / `parser-conformance` | Phase 0 |
+| `REQ-PARSER-002` | `SRC-P0`, `SRC-PARSER` | `AC-PARSER-001` | `TEST-CONTRACT-003` | `EVID-PARSER-CONFORMANCE-001` / `parser-conformance` | Phase 0 |
+| `REQ-VLM-001` | `SRC-VLM`, `SRC-P0`, `SRC-VLM-RESEARCH` | `AC-VLM-001` | `TEST-CONTRACT-004` | `EVID-VLM-CONFORMANCE-001` / `vlm-conformance` | Phase 0 |
+| `REQ-VLM-002` | `SRC-VLM`, `SRC-P0` | `AC-VLM-002` | `TEST-CONTRACT-004` | `EVID-VLM-CONFORMANCE-001` / `vlm-conformance` | Phase 0 |
+| `REQ-RUN-001` | `SRC-WALK`, `SRC-EVOLVE`, `SRC-VLM` | `AC-RUN-001` | `TEST-SCHEMA-001` | `EVID-TEST-REPORT-010` / `test-report` | walking |
+| `REQ-RUN-002` | `SRC-WALK`, `SRC-EVOLVE` | `AC-RUN-001` | `TEST-E2E-002` | `EVID-WALKING-VERTICAL-001` / `walking-vertical` | walking |
+| `REQ-STORE-001` | `SRC-EVOLVE`, `SRC-WALK` | `AC-STORE-001` | `TEST-INTEGRATION-001` | `EVID-TEST-REPORT-009` / `test-report` | walking |
+| `REQ-STORE-002` | `SRC-EVOLVE` | `AC-STORE-001` | `TEST-INTEGRATION-001` | `EVID-TEST-REPORT-009` / `test-report` | walking |
+| `REQ-BOUNDARY-001` | `SRC-EVOLVE` | `AC-BOUNDARY-001` | `TEST-CONTRACT-002` | `EVID-TEST-REPORT-008` / `test-report` | walking |
+| `REQ-P0-001` | `SRC-P0`, `SRC-WALK` | `AC-P0-001` | `TEST-INTEGRATION-002` | `EVID-PHASE0-DECISION-001` / `phase0-decision` | Phase 0 |
+| `REQ-P0-002` | `SRC-P0` | `AC-P0-001` | `TEST-INTEGRATION-002` | `EVID-PHASE0-DECISION-001` / `phase0-decision` | Phase 0 |
+| `REQ-P0-003` | `SRC-P0`, `SRC-WALK` | `AC-P0-001` | `TEST-INTEGRATION-002` | `EVID-PHASE0-DECISION-001` / `phase0-decision` | Phase 0 |
+| `REQ-WALK-001` | `SRC-WALK`, `SRC-P0` | `AC-WALK-001` | `TEST-E2E-001` | `EVID-WALKING-VERTICAL-001` / `walking-vertical` | walking |
+| `REQ-WALK-002` | `SRC-WALK`, `SRC-EVOLVE` | `AC-WALK-001` | `TEST-E2E-002` | `EVID-WALKING-VERTICAL-001` / `walking-vertical` | walking |
+| `REQ-EVIDENCE-001` | `SRC-TRACE`, `SRC-P0` | `AC-EVIDENCE-001` | `TEST-MANUAL-001` | `EVID-TEST-REPORT-011` / `test-report` | Phase 0/walking/later |
+| `REQ-EVIDENCE-002` | `SRC-TRACE`, `SRC-CORPUS`, `SRC-LICENSE` | `AC-EVIDENCE-001` | `TEST-MANUAL-001` | `EVID-TEST-REPORT-011` / `test-report` | Phase 0/walking/later |
+| `REQ-LATER-001` | `SRC-CORPUS`, `SRC-WALK` | `AC-LATER-001` | `TEST-BENCH-001`, `TEST-CONTRACT-009` | `EVID-PUBLIC-BENCHMARK-001` / `public-benchmark`; `EVID-TEST-REPORT-007` / `test-report` | later hardening |
+| `REQ-LATER-002` | `SRC-EVOLVE`, `SRC-WALK` | `AC-LATER-001` | `TEST-MANUAL-002` | `EVID-DISTRIBUTION-REVIEW-001` / `distribution-review` | later/future distribution |
 
 Before approval, manually verify that every requirement occurs once, each has Decision evidence/AC/test/evidence kind, ACs lead to a test or justified manual rubric, every source appears in a row, deferred work is assigned to scope or later phase, no future evidence is claimed, and all full-SHA links and Markdown resolve. The documentation-only review may perform this completeness check manually; it does not authorize a linter or evidence system.
