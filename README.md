@@ -1,2 +1,50 @@
 # docproc
 Document processing pipelines
+
+## Architectural Justification: The Modern Local-First PDF Pipeline
+
+This repository implements a highly disciplined, spec-driven execution of a modern document processing pipeline. While legacy document pipelines rely on flat text extraction and external cloud dependencies, `docproc` compresses modern paradigms—vision-native parsing, LLM-driven structured extraction, and semantic indexing—into a fiercely governed, local-only "walking vertical."
+
+This architecture prioritizes local data control, offline-capable operation, and exact evidence over premature scaling.
+
+### Legacy vs. Modern Architecture
+
+| Feature | Legacy Pipeline Approach | Modern `docproc` Approach |
+| :--- | :--- | :--- |
+| **Pipeline Flow** | Ingest ➔ OCR ➔ Inference ➔ ES-Index ➔ UI | MinIO ➔ Worker ➔ Docling ➔ Local Ollama ➔ SQLite/OpenSearch ➔ Streamlit |
+| **Parsing Strategy** | Dumb OCR (flattens layouts, destroys tables). | Vision-native parsing (preserves reading order, tables, and visual hierarchy). |
+| **State Management** | Search index acts as the primary database, risking split-brain state drift. | SQLite is authoritative; OpenSearch is strictly a rebuildable Projection. |
+| **Inference & Privacy** | Cloud APIs (GPT-4, Claude) requiring data egress and creating privacy risks. | 100% local host Ollama quantized models with a strict, frozen fallback routing matrix. |
+| **Execution Boundaries** | Prematurely distributed (Kafka, Celery, Kubernetes) complicating debugging. | Single polling worker enforcing deterministic, end-to-end data contracts. |
+| **Testing & Evaluation** | Evaluated on real "anonymized" data, risking PII leakage into Git. | Synthetic-only CI fixtures isolated from the public accuracy benchmark. |
+
+### Core Advantages of the `docproc` Blueprint
+
+#### 1. The Projection Pattern (State Management)
+
+Pumping extracted JSON directly into a search index often leads to corruption or schema drift that is impossible to cleanly recover from. This architecture uses MinIO as the immutable source-document object store, mandates SQLite as the authoritative processing-state registry, and treats OpenSearch purely as a rebuildable projection. If the search cluster corrupts, its index can be rebuilt from SQLite's processing records and the exact immutable MinIO objects those records reference.
+
+#### 2. Local Data Sovereignty
+
+Running quantized models locally (e.g., `qwen3.5:9b-q4_K_M`) supports data privacy and offline operation by avoiding cloud inference; it does not by itself enforce network isolation, disable telemetry, or control storage. The frozen conformance matrix routes a 9B memory or latency failure to `qwen3.5:4b-q4_K_M` and a 9B/4B structured-serving compatibility failure to `qwen3-vl:8b-instruct-q4_K_M`; no other failure triggers a fallback, and no route uses a cloud API.
+
+#### 3. Vision-Native Enforcement
+
+Legacy OCR produces unpredictable text blobs that cause downstream AI to hallucinate. This pipeline enforces Docling with full-page RapidOCR/ONNX while explicitly banning automatic/heuristic OCR fallbacks. Parser output advances only after passing the configured structural gates within the 300-second document limit; a hard-gate failure is retained as an Adjust outcome and stops dependent work without an automatic retry or parser/OCR fallback. Individual inference timeouts are recorded without retry, and only eligible gate failures follow the named model routes above.
+
+#### 4. Bounded Execution
+
+Rather than building a distributed system on day one, this blueprint enforces a "walking vertical." A single polling worker validates the data contracts (ingest ➔ parse ➔ extract ➔ project) end-to-end while preserving these identity invariants:
+
+- **Source Object:** One received occurrence, identified from its storage namespace, bucket, object key, and immutable object version. Its locator and version never change; a different key or version creates a new Source Object, and each Source Object links to exactly one Document.
+- **Document:** Immutable content identity, identified by the SHA-256 digest of the exact PDF bytes. Source Objects with identical bytes share one Document; changed bytes create a new Document.
+- **Processing Request:** One logical instruction, identified by an originator-generated UUIDv4 `request_id` that serves as its idempotency key. The originator creates this key once and reuses it unchanged for every delivery or retry. A request immutably binds exactly one Source Object and one processing-definition digest. The first accepted submission creates exactly one Processing Run; a submission with the same `request_id` and identical bindings returns that run, while reuse with different bindings is rejected.
+- **Processing Run:** One attempt, including a cache hit, identified by a server-generated UUIDv4 `run_id` and carrying immutable references to exactly one Processing Request, its Source Object, its Document, and its processing-definition digest. Deliberate reprocessing creates a new `request_id` and a new child run whose immutable `parent_run_id` references the run being reprocessed; an initial run has `parent_run_id = NULL`. Prior runs are never overwritten.
+- **Evidence Record:** A content-addressed, immutable envelope and payload that link the observed Processing Run and its exact version-pinned artifacts to their inputs, environment, outcome, and specification references. Corrections or redactions create new linked records or artifacts; they never mutate prior evidence. The content-addressing contract is:
+  - **Address and canonicalization:** Every address uses SHA-256 and has the form `<kind>:sha256:<64 lowercase hexadecimal characters>`, where `<kind>` is `evp1` (evidence payload), `art1` (artifact descriptor), or `evr1` (evidence envelope). Structured values are serialized with the [JSON Canonicalization Scheme (RFC 8785)](https://www.rfc-editor.org/rfc/rfc8785) and encoded as UTF-8 without a byte-order mark. Producers must reject duplicate object keys, non-finite numbers, and values outside the RFC 8785 domain. Optional absent members are omitted rather than emitted as `null`; set-like arrays are sorted lexicographically by their stable identifier, while arrays whose order is meaningful retain that order. Addressing equality means equality of these canonical bytes; no additional Unicode, timestamp, or application-level normalization is implied.
+  - **Payload address:** `evp1:sha256:H` uses `H = SHA-256("docproc:evidence-payload:v1" || 0x00 || JCS(payload))`. The payload is a JSON object containing `payload_version`, `payload_schema_digest`, and only the observation data defined by that schema; the schema digest has the form `sha256:<hex>` and covers the exact schema bytes. Transport wrappers, database keys, storage locations, and collection timestamps that are not themselves part of the observation are outside the payload preimage.
+  - **Artifact address:** First compute `content_digest = sha256:<hex>` over the exact artifact bytes as persisted, without decompression, decoding, newline conversion, or re-encoding. The artifact descriptor is a JSON object with exactly these members: `descriptor_version`, `content_digest`, `byte_length`, `media_type` (a lowercase IANA type/subtype without parameters), and `content_encoding` (a lowercase IANA coding, or `identity`); it also contains `charset` as a lowercase IANA name for textual content and `format_schema` when applicable. `format_schema`, when present, is exactly `{id, version, digest}`, where `id` is an immutable specification identifier and `digest` is `sha256:<hex>` over the exact specification bytes. Members that do not apply are omitted. `art1:sha256:H` uses `H = SHA-256("docproc:artifact-descriptor:v1" || 0x00 || JCS(descriptor))`. Storage bucket, object key, filename, creation time, and producer/run provenance are excluded from the descriptor; roles and provenance belong in the evidence envelope. Thus byte-identical content with identical interpretation metadata has one artifact address even when copied, while changed bytes or interpretation metadata produces a new address.
+  - **Envelope address:** The envelope contains `envelope_version`, `payload_address`, `run_id`, `source_object_id`, `document_digest`, `processing_definition_digest`, `input_ids`, `environment`, `outcome`, `specification_refs`, and artifact bindings of the form `{role, artifact_address}` sorted by `(role, artifact_address)`. A correction or redaction also contains the prior `evr1` address in `supersedes`. `evr1:sha256:H` uses `H = SHA-256("docproc:evidence-envelope:v1" || 0x00 || JCS(envelope with its evidence_address member omitted))`; only `evidence_address` and non-evidentiary storage/transport metadata are excluded. Re-serializing the same envelope and payload therefore reproduces their addresses. Different runs have different envelope addresses because `run_id` is evidence, but may deduplicate identical payloads and artifacts.
+  - **Verification and immutability:** On write and read, recompute the content digest, artifact address, payload address, and envelope address in that order and reject any mismatch. An existing address may be reused only when its canonical preimage is byte-for-byte identical; it is never overwritten. A correction or redaction creates newly addressed payloads or artifacts and a new envelope linked with `supersedes`.
+
+Kubernetes, AWS, and other distributed scaling remain deferred until the walking vertical demonstrates these invariants and lifecycle relationships.
