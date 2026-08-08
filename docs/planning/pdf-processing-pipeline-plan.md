@@ -34,7 +34,7 @@ Each `SRC-*` below is a full-SHA-pinned artifact. `SRC-PLAN` is reconciliation i
 ## Domain language
 
 - A **Source object** is one occurrence of received PDF bytes. A **Document** is the content identity shared by Source objects with exactly those bytes.
-- A **Processing request** is the idempotent intention to create one **Processing run**. A Processing run is one attempt under one immutable **Processing definition**; a cache hit has its own run ID and status.
+- A **Processing request** is the idempotent intention to create one **Processing run**. A Processing run is one attempt under one Processing request and one immutable **Processing definition**; a cache hit has its own run ID and status.
 - A **Stage attempt** is one execution attempt for a named stage. A **Work claim** is time-bounded, fenced authority for a worker to advance it.
 - An **Artifact** is immutable content/kind identity. An **Artifact reference** is its exact version-pinned, digest-verifiable occurrence.
 - A **Projection** is rebuildable derived state; OpenSearch is a Projection and never authoritative processing state.
@@ -43,6 +43,17 @@ Each `SRC-*` below is a full-SHA-pinned artifact. `SRC-PLAN` is reconciliation i
 - A **Selection gate** resolves a contract criterion. A **valid measurement** follows the frozen contract. **Go**, **Adjust**, **Cut**, **Overall Phase 0 outcome**, **Implementation authorization**, and **T0** have the meanings in `SRC-P0` and `SRC-WALK`.
 
 Actual-component Phase 0 and walking execution are future Conformance work. They are not evidence produced by this blueprint. T0 begins only with the separately authorized, exact Implementation-authorization form specified by `SRC-P0`/`SRC-WALK`; a review note, approval request, or ordinary issue/PR comment does not start it.
+
+## Required local topology
+
+```text
+source PDF → MinIO → one polling worker → Docling → host Ollama
+                    ↘ SQLite authoritative state
+                    ↘ OpenSearch Projection
+Streamlit reads SQLite, MinIO Artifacts, and the OpenSearch Projection
+```
+
+MinIO, SQLite, OpenSearch, Streamlit, and host Ollama bind localhost-only; Docling runs through the worker. No listener is a hosted or LAN-facing service.
 
 ## Normative requirements
 
@@ -53,6 +64,8 @@ IDs use `REQ-<FAMILY>-<NNN>`. Each requirement has one observable subject; chang
 | `REQ-SCOPE-001` | The runtime MUST remain entirely local with one polling worker and no hosted inference or cloud critical path. |
 | `REQ-SCOPE-002` | The implementation MUST retain MinIO, SQLite, OpenSearch, Streamlit, Docling, and host Ollama in the walking vertical. |
 | `REQ-SCOPE-003` | The fourteen-day sequence MUST be treated as illustrative; walking-vertical acceptance MUST target `T0 + 168 hours`. |
+| `REQ-SCOPE-004` | The repository license MUST remain MIT unless a maintainer separately changes it. |
+| `REQ-SCOPE-005` | Every walking-vertical service MUST bind only to localhost and MUST expose no externally reachable listener. |
 | `REQ-DOMAIN-001` | The system MUST use the `docproc-identity-v1` framing and distinguish Source object, Document, Processing request, Processing run, Stage attempt, and Work claim. |
 | `REQ-DOMAIN-002` | A Processing definition MUST be immutable and versioned canonical records MUST preserve the identity relationships it governs. |
 | `REQ-ART-001` | Artifact writes MUST be create-if-absent and metadata success MUST follow version-pinned readback and digest verification. |
@@ -87,8 +100,11 @@ IDs use `AC-<FAMILY>-<NNN>`; every ID in this table cites exact requirement IDs.
 |---|---|---|
 | `AC-SCOPE-001` | `REQ-SCOPE-001`, `REQ-SCOPE-002` | The documented component graph contains the six local components and one worker, and contains no hosted/cloud critical path. |
 | `AC-SCOPE-002` | `REQ-SCOPE-003` | The plan labels the 14-day sequence illustrative and the walking target `T0 + 168h`. |
+| `AC-SCOPE-003` | `REQ-SCOPE-004` | The repository license file and blueprint both identify MIT with no conflicting operative license assertion. |
+| `AC-SCOPE-004` | `REQ-SCOPE-005` | Resolved walking service configuration and listener inspection show localhost-only bindings. |
 | `AC-DOMAIN-001` | `REQ-DOMAIN-001`, `REQ-DOMAIN-002` | Canonical records and identity vectors distinguish each defined entity and reject a changed Processing definition as compatible reuse. |
-| `AC-ART-001` | `REQ-ART-001`, `REQ-ART-002` | An Artifact write/readback exposes exact version and digest; a measured rerun records no external request. |
+| `AC-ART-001` | `REQ-ART-001` | An Artifact write/readback exposes exact version and digest before metadata success. |
+| `AC-ART-002` | `REQ-ART-002` | Observed prefetch rejects every unlisted request/artifact, and locked parser and VLM measured reruns record zero external requests under enforced egress denial. |
 | `AC-CORPUS-001` | `REQ-CORPUS-001`, `REQ-CORPUS-003` | The repository/CI content scan finds only cleared synthetic fixtures and no FUNSD material or dependency path. |
 | `AC-CORPUS-002` | `REQ-CORPUS-002` | NAF acquisition, eligibility ledger, ignored-edge semantics, hand-computed scorer cases, and 77-page accounting reproduce the frozen profile. |
 | `AC-PARSER-001` | `REQ-PARSER-001`, `REQ-PARSER-002` | A fixed Docling manifest records full-page OCR configuration, all hard-gate outcomes, timeout, telemetry, outputs, and failures. |
@@ -110,6 +126,12 @@ IDs use `TEST-<KIND>-<NNN>`, where `KIND` is `UNIT`, `SCHEMA`, `CONTRACT`, `INTE
 |---|---|---|---|
 | `TEST-UNIT-001` | `AC-DOMAIN-001` | Identity/canonicalization vectors; construct Source objects, Documents, requests, and changed definitions. | Exact IDs and incompatibility result; offline; `test-report`. |
 | `TEST-CONTRACT-001` | `AC-ART-001` | Fixed Artifact bytes with forced duplicate and readback. | Create-if-absent, exact version/digest, metadata ordering; offline; `lock-inventory`. |
+| `TEST-CONTRACT-005` | `AC-SCOPE-001`, `AC-SCOPE-004` | Resolved component configuration and listener list for the walking stack. | Exactly one worker, six local components, and localhost-only listeners with no hosted/cloud path; offline configuration check; `test-report`. |
+| `TEST-CONTRACT-006` | `AC-SCOPE-002` | Blueprint schedule text under a fixed review checklist. | Labels 14 days illustrative and walking target exactly `T0 + 168h`; offline; `test-report`. |
+| `TEST-CONTRACT-007` | `AC-SCOPE-003` | Repository `LICENSE` and operative blueprint license assertions. | Both identify MIT and contain no conflicting operative license; offline; `test-report`. |
+| `TEST-CONTRACT-008` | `AC-CORPUS-001` | Clean clone, ordinary-CI selection, and repository content/dependency scan. | Only cleared synthetic fixtures are used; FUNSD and restricted corpus material are absent; offline; `test-report`. |
+| `TEST-CONTRACT-009` | `AC-LATER-001` | Repository configuration, import, and dependency scan before a later initiative. | No queue/PostgreSQL/Kubernetes/EKS/AWS path exists and the full benchmark remains post-walking; offline; `test-report`. |
+| `TEST-CONTRACT-010` | `AC-ART-002` | Observed prefetch followed by locked parser and VLM measured reruns with egress enforcement. | Every unlisted request/artifact is rejected; both reruns make zero external requests; authorized Phase 0; `lock-inventory`. |
 | `TEST-CONTRACT-002` | `AC-BOUNDARY-001` | Adapter contracts and import graph. | No infrastructure/local-path/process identity crosses a boundary; offline; `test-report`. |
 | `TEST-INTEGRATION-001` | `AC-STORE-001` | Claim/cache races and crash windows against actual local stores. | Fencing, deterministic replay, and rebuildable Projection; authorized local service run; `test-report`. |
 | `TEST-SCHEMA-001` | `AC-RUN-001` | Valid, invalid, and repaired extraction records across admitted pages. | Invalid final output cannot succeed; every page is accounted for; offline; `test-report`. |
@@ -207,16 +229,18 @@ There is one row for each normative requirement. A row names Decision evidence, 
 
 | Requirement ID | Decision evidence | AC IDs | Test IDs | Expected evidence kind | Phase |
 |---|---|---|---|---|---|
-| `REQ-SCOPE-001` | `SRC-WALK`, `SRC-EVOLVE` | `AC-SCOPE-001` | `TEST-CONTRACT-002` | `test-report` | walking |
-| `REQ-SCOPE-002` | `SRC-WALK`, `SRC-P0` | `AC-SCOPE-001` | `TEST-E2E-001` | `walking-vertical` | walking |
-| `REQ-SCOPE-003` | `SRC-WALK`, `SRC-P0` | `AC-SCOPE-002` | `TEST-INTEGRATION-002` | `phase0-decision` | Phase 0/walking |
+| `REQ-SCOPE-001` | `SRC-WALK`, `SRC-EVOLVE` | `AC-SCOPE-001` | `TEST-CONTRACT-005` | `test-report` | walking |
+| `REQ-SCOPE-002` | `SRC-WALK`, `SRC-P0` | `AC-SCOPE-001` | `TEST-CONTRACT-005` | `test-report` | walking |
+| `REQ-SCOPE-003` | `SRC-WALK`, `SRC-P0` | `AC-SCOPE-002` | `TEST-CONTRACT-006` | `test-report` | Phase 0/walking |
+| `REQ-SCOPE-004` | `SRC-LICENSE`, `SRC-TRACE` | `AC-SCOPE-003` | `TEST-CONTRACT-007` | `test-report` | Phase 0/walking/later |
+| `REQ-SCOPE-005` | `SRC-WALK`, `SRC-LICENSE` | `AC-SCOPE-004` | `TEST-CONTRACT-005` | `test-report` | walking |
 | `REQ-DOMAIN-001` | `SRC-EVOLVE` | `AC-DOMAIN-001` | `TEST-UNIT-001` | `test-report` | walking |
 | `REQ-DOMAIN-002` | `SRC-EVOLVE` | `AC-DOMAIN-001` | `TEST-UNIT-001` | `test-report` | walking |
 | `REQ-ART-001` | `SRC-EVOLVE`, `SRC-LICENSE` | `AC-ART-001` | `TEST-CONTRACT-001` | `lock-inventory` | Phase 0/walking |
-| `REQ-ART-002` | `SRC-LICENSE`, `SRC-P0` | `AC-ART-001` | `TEST-CONTRACT-001` | `lock-inventory` | Phase 0 |
-| `REQ-CORPUS-001` | `SRC-CORPUS`, `SRC-LICENSE` | `AC-CORPUS-001` | `TEST-CONTRACT-002` | `test-report` | walking/later |
+| `REQ-ART-002` | `SRC-LICENSE`, `SRC-P0` | `AC-ART-002` | `TEST-CONTRACT-010` | `lock-inventory` | Phase 0 |
+| `REQ-CORPUS-001` | `SRC-CORPUS`, `SRC-LICENSE` | `AC-CORPUS-001` | `TEST-CONTRACT-008` | `test-report` | walking/later |
 | `REQ-CORPUS-002` | `SRC-CORPUS`, `SRC-NAF` | `AC-CORPUS-002` | `TEST-GOLDEN-001`, `TEST-BENCH-001` | `corpus-verification`, `public-benchmark` | Phase 0/later |
-| `REQ-CORPUS-003` | `SRC-CORPUS`, `SRC-FUNSD` | `AC-CORPUS-001` | `TEST-CONTRACT-002` | `test-report` | walking/later |
+| `REQ-CORPUS-003` | `SRC-CORPUS`, `SRC-FUNSD` | `AC-CORPUS-001` | `TEST-CONTRACT-008` | `test-report` | walking/later |
 | `REQ-PARSER-001` | `SRC-WALK`, `SRC-PARSER`, `SRC-LICENSE` | `AC-PARSER-001` | `TEST-CONTRACT-003` | `parser-conformance` | Phase 0 |
 | `REQ-PARSER-002` | `SRC-P0`, `SRC-PARSER` | `AC-PARSER-001` | `TEST-CONTRACT-003` | `parser-conformance` | Phase 0 |
 | `REQ-VLM-001` | `SRC-VLM`, `SRC-P0`, `SRC-VLM-RESEARCH` | `AC-VLM-001` | `TEST-CONTRACT-004` | `vlm-conformance` | Phase 0 |
@@ -233,7 +257,7 @@ There is one row for each normative requirement. A row names Decision evidence, 
 | `REQ-WALK-002` | `SRC-WALK`, `SRC-EVOLVE` | `AC-WALK-001` | `TEST-E2E-002` | `walking-vertical` | walking |
 | `REQ-EVIDENCE-001` | `SRC-TRACE`, `SRC-P0` | `AC-EVIDENCE-001` | `TEST-MANUAL-001` | `test-report` | Phase 0/walking/later |
 | `REQ-EVIDENCE-002` | `SRC-TRACE`, `SRC-CORPUS`, `SRC-LICENSE` | `AC-EVIDENCE-001` | `TEST-MANUAL-001` | `distribution-review` | Phase 0/walking/later |
-| `REQ-LATER-001` | `SRC-CORPUS`, `SRC-WALK` | `AC-LATER-001` | `TEST-BENCH-001` | `public-benchmark` | later hardening |
-| `REQ-LATER-002` | `SRC-EVOLVE`, `SRC-WALK` | `AC-LATER-001` | `TEST-CONTRACT-002` | `distribution-review` | later/future distribution |
+| `REQ-LATER-001` | `SRC-CORPUS`, `SRC-WALK` | `AC-LATER-001` | `TEST-BENCH-001`, `TEST-CONTRACT-009` | `public-benchmark` | later hardening |
+| `REQ-LATER-002` | `SRC-EVOLVE`, `SRC-WALK` | `AC-LATER-001` | `TEST-CONTRACT-009` | `distribution-review` | later/future distribution |
 
 Before approval, manually verify that every requirement occurs once, each has Decision evidence/AC/test/evidence kind, ACs lead to a test or justified manual rubric, every source appears in a row, deferred work is assigned to scope or later phase, no future evidence is claimed, and all full-SHA links and Markdown resolve. The documentation-only review may perform this completeness check manually; it does not authorize a linter or evidence system.
