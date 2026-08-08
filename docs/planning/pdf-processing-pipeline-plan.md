@@ -126,7 +126,7 @@ IDs use `TEST-<KIND>-<NNN>`, where `KIND` is `UNIT`, `SCHEMA`, `CONTRACT`, `INTE
 |---|---|---|---|
 | `TEST-UNIT-001` | `AC-DOMAIN-001` | Identity/canonicalization vectors; construct Source objects, Documents, requests, and changed definitions. | Exact IDs and incompatibility result; offline; `test-report`. |
 | `TEST-CONTRACT-001` | `AC-ART-001` | Fixed Artifact bytes with forced duplicate and readback. | Create-if-absent, exact version/digest, metadata ordering; offline; `lock-inventory`. |
-| `TEST-CONTRACT-005` | `AC-SCOPE-001`, `AC-SCOPE-004` | Resolved component configuration and listener list for the walking stack. | Exactly one worker, six local components, and localhost-only listeners with no hosted/cloud path; offline configuration check; `test-report`. |
+| `TEST-CONTRACT-005` | `AC-SCOPE-001`, `AC-SCOPE-004` | Resolved component configuration plus an authorized local-service run with external network denied. | Exactly one worker and six local components; inspect every network-service listener and require loopback-only binding with no hosted/cloud path; `test-report`. |
 | `TEST-CONTRACT-006` | `AC-SCOPE-002` | Blueprint schedule text under a fixed review checklist. | Labels 14 days illustrative and walking target exactly `T0 + 168h`; offline; `test-report`. |
 | `TEST-CONTRACT-007` | `AC-SCOPE-003` | Repository `LICENSE` and operative blueprint license assertions. | Both identify MIT and contain no conflicting operative license; offline; `test-report`. |
 | `TEST-CONTRACT-008` | `AC-CORPUS-001` | Clean clone, ordinary-CI selection, and repository content/dependency scan. | Only cleared synthetic fixtures are used; FUNSD and restricted corpus material are absent; offline; `test-report`. |
