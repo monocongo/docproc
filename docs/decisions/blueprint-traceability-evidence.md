@@ -19,6 +19,7 @@ Issue #13 must use full-SHA links to this closed set; branch names, mutable “l
 | `SRC-FUNSD` | [FUNSD research at `093a663`](https://github.com/monocongo/docproc/blob/093a663bdd6fa419ac2931c88ad1b9e5cda0da78/docs/research/funsd-corpus-assumptions.md) | Historical rationale for omission and correction of the stale CC BY claim. |
 | `SRC-PARSER` | [Parser research at `0e4fbf3`](https://github.com/monocongo/docproc/blob/0e4fbf3f87989ed0002ca5e24add68b6fda0a055/docs/research/parser-spike-candidates.md) | Docling hard gates/scorecard and Marker/Surya code/model distinction. |
 | `SRC-VLM-RESEARCH` | [M5 VLM research at `cc144e6`](https://github.com/monocongo/docproc/blob/cc144e6239b4d4dff37f8325ad6feb70dc2d77f9/docs/research/local-vlm-serving-m5.md) | Research-time candidate artifacts, M5 serving facts, and measured-evidence gap. |
+| `SRC-TRACE` | [Blueprint traceability decision at `30fa592`](https://github.com/monocongo/docproc/blob/30fa592efcde4d45c0f6053518ac5937ae843578/docs/decisions/blueprint-traceability-evidence.md) | Stable traceability, evidence, ID, and publication-boundary contract for the final blueprint. |
 
 The commit-pinned `SRC-WALK` artifact carries the accepted issue #17 Docling-only outcome, so the final blueprint need not rely on a mutable issue comment. Research supports a decision but does not override the later decision artifact.
 
@@ -88,7 +89,7 @@ Issue #13 must encode and trace at least these invariants; detailed subcriteria 
 | `REQ-BOUNDARY` | Infrastructure types do not escape adapters; typed/versioned cross-stage records use Artifact references; no local path/process/backend identity leakage; no speculative transport/backend. | `SRC-EVOLVE` |
 | `REQ-P0` | Only bounded evidence work before overall Go; LIC/CORPUS/PARSER/VLM/MACHINE/WALK exact outcomes; Cut > Adjust > Go; T0+48h expiry; sole/superseding authorization semantics. | `SRC-P0`, `SRC-WALK` |
 | `REQ-WALK` | Exact committed one-page synthetic fixture; all actual local stages; non-empty schema-valid result/evidence/metrics; duplicate cached run; fresh-process readback; basic offline tests; immutable acceptance record. | `SRC-WALK` |
-| `REQ-EVIDENCE` | Machine-readable/human evidence pair, exact inputs/environment/outcomes/failures/exclusions, Decision-evidence links, specification references, content classification, and immutable approval link. | `SRC-P0`, this decision |
+| `REQ-EVIDENCE` | Machine-readable/human evidence pair, exact inputs/environment/outcomes/failures/exclusions, Decision-evidence links, specification references, content classification, and immutable approval link. | `SRC-P0`, `SRC-TRACE` |
 | `REQ-LATER` | Full 77-page NAF test benchmark, broader reliability/security/performance/packaging after walking acceptance; no queues/PostgreSQL/Kubernetes/EKS/AWS until a measured future initiative. | `SRC-CORPUS`, `SRC-WALK`, `SRC-EVOLVE` |
 
 “No implementation” is a requirement when it protects scope. Explicit absences need negative Acceptance criteria where a repository scan, import rule, lock inventory, or payload scan can observe them.
