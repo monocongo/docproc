@@ -34,4 +34,11 @@ Legacy OCR produces unpredictable text blobs that cause downstream AI to halluci
 
 #### 4. Bounded Execution
 
-Rather than building a distributed system on day one, this blueprint enforces a "walking vertical." Limiting the scope to a single polling worker proves that the data contracts (ingest ➔ parse ➔ extract ➔ project) function perfectly end-to-end. Scaling to Kubernetes or AWS is explicitly deferred until the fundamental identity vectors (Source Object vs. Document vs. Processing Run) are proven mathematically sound and backed by immutable evidence records.
+Rather than building a distributed system on day one, this blueprint enforces a "walking vertical." A single polling worker validates the data contracts (ingest ➔ parse ➔ extract ➔ project) end-to-end while preserving these identity invariants:
+
+- **Source Object:** One received occurrence, identified from its storage namespace, bucket, object key, and immutable object version. Its locator and version never change; a different key or version creates a new Source Object, and each Source Object links to exactly one Document.
+- **Document:** Immutable content identity, identified by the SHA-256 digest of the exact PDF bytes. Source Objects with identical bytes share one Document; changed bytes create a new Document.
+- **Processing Run:** One attempt with a new UUIDv4 for each Processing Request, including cache hits, with immutable references to exactly one Source Object, its Document, and one processing-definition digest. Replaying a request returns its existing run; reprocessing requires a new request and child run rather than overwriting history.
+- **Evidence Record:** A content-addressed, immutable envelope and payload that link the observed Processing Run and its exact version-pinned artifacts to their inputs, environment, outcome, and specification references. Corrections or redactions create new linked records or artifacts; they never mutate prior evidence.
+
+Kubernetes, AWS, and other distributed scaling remain deferred until the walking vertical demonstrates these invariants and lifecycle relationships.
