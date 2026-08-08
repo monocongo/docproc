@@ -53,7 +53,7 @@ source PDF → MinIO → one polling worker → Docling → host Ollama
 Streamlit reads SQLite, MinIO Artifacts, and the OpenSearch Projection
 ```
 
-MinIO, SQLite, OpenSearch, Streamlit, and host Ollama bind localhost-only; Docling runs through the worker. No listener is a hosted or LAN-facing service.
+MinIO, OpenSearch, Streamlit, and host Ollama bind localhost-only; SQLite is the embedded authoritative registry, and Docling runs through the worker. No listener is a hosted or LAN-facing service.
 
 ## Normative requirements
 
