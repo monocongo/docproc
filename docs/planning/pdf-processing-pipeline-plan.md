@@ -125,7 +125,7 @@ IDs use `TEST-<KIND>-<NNN>`, where `KIND` is `UNIT`, `SCHEMA`, `CONTRACT`, `INTE
 | ID | AC / REQ | Population and action | Oracle / mode / evidence |
 |---|---|---|---|
 | `TEST-UNIT-001` | `AC-DOMAIN-001` | Identity/canonicalization vectors; construct Source objects, Documents, requests, and changed definitions. | Exact IDs and incompatibility result; offline; `EVID-TEST-REPORT-001`. |
-| `TEST-CONTRACT-001` | `AC-ART-001` | Fixed Artifact bytes with forced duplicate and readback. | Create-if-absent, exact version/digest, metadata ordering; offline; `EVID-LOCK-INVENTORY-001`. |
+| `TEST-CONTRACT-001` | `AC-ART-001` | Fixed Artifact bytes with forced duplicate and readback. | Create-if-absent, exact version/digest, metadata ordering; offline; `EVID-TEST-REPORT-002`. |
 | `TEST-CONTRACT-005` | `AC-SCOPE-001`, `AC-SCOPE-004` | Resolved component configuration plus an authorized local-service run with external network denied. | Exactly one worker and six local components; inspect every network-service listener and require loopback-only binding with no hosted/cloud path; `EVID-TEST-REPORT-003`. |
 | `TEST-CONTRACT-006` | `AC-SCOPE-002` | Blueprint schedule text under a fixed review checklist. | Labels 14 days illustrative and walking target exactly `T0 + 168h`; offline; `EVID-TEST-REPORT-004`. |
 | `TEST-CONTRACT-007` | `AC-SCOPE-003` | Repository `LICENSE` and operative blueprint license assertions. | Both identify MIT and contain no conflicting operative license; offline; `EVID-TEST-REPORT-005`. |
@@ -181,6 +181,7 @@ References are full commit SHAs or exact Artifact version-plus-digest, never bra
 | `EVID-PHASE0-DECISION-001` / `phase0-decision` | Gate outcomes, invalid runs, precedence, approver, authorization/T0, and deadline. |
 | `EVID-WALKING-VERTICAL-001` / `walking-vertical` | Twelve-step observations, producer/cached runs, duplicate, fresh-process readback, metrics, and no-reexecution proof. |
 | `EVID-TEST-REPORT-001` / `test-report` | Identity and Processing-definition vectors. |
+| `EVID-TEST-REPORT-002` / `test-report` | Artifact create-if-absent, exact readback, and metadata-ordering check. |
 | `EVID-TEST-REPORT-003` / `test-report` | Local topology and listener observation. |
 | `EVID-TEST-REPORT-004` / `test-report` | Illustrative-schedule and walking-target check. |
 | `EVID-TEST-REPORT-005` / `test-report` | Repository-license consistency check. |
@@ -262,7 +263,7 @@ There is one row for each normative requirement. A row names Decision evidence, 
 | `REQ-SCOPE-005` | `SRC-WALK`, `SRC-LICENSE` | `AC-SCOPE-004` | `TEST-CONTRACT-005` | `EVID-TEST-REPORT-003` / `test-report` | walking |
 | `REQ-DOMAIN-001` | `SRC-EVOLVE` | `AC-DOMAIN-001` | `TEST-UNIT-001` | `EVID-TEST-REPORT-001` / `test-report` | walking |
 | `REQ-DOMAIN-002` | `SRC-EVOLVE` | `AC-DOMAIN-001` | `TEST-UNIT-001` | `EVID-TEST-REPORT-001` / `test-report` | walking |
-| `REQ-ART-001` | `SRC-EVOLVE`, `SRC-LICENSE` | `AC-ART-001` | `TEST-CONTRACT-001` | `EVID-LOCK-INVENTORY-001` / `lock-inventory` | Phase 0/walking |
+| `REQ-ART-001` | `SRC-EVOLVE`, `SRC-LICENSE` | `AC-ART-001` | `TEST-CONTRACT-001` | `EVID-TEST-REPORT-002` / `test-report` | Phase 0/walking |
 | `REQ-ART-002` | `SRC-LICENSE`, `SRC-P0` | `AC-ART-002` | `TEST-CONTRACT-010` | `EVID-LOCK-INVENTORY-001` / `lock-inventory` | Phase 0 |
 | `REQ-CORPUS-001` | `SRC-CORPUS`, `SRC-LICENSE` | `AC-CORPUS-001` | `TEST-CONTRACT-008` | `EVID-TEST-REPORT-006` / `test-report` | walking/later |
 | `REQ-CORPUS-002` | `SRC-CORPUS`, `SRC-NAF` | `AC-CORPUS-002` | `TEST-GOLDEN-001`, `TEST-BENCH-001` | `EVID-CORPUS-VERIFICATION-001` / `corpus-verification`; `EVID-PUBLIC-BENCHMARK-001` / `public-benchmark` | Phase 0/later |
