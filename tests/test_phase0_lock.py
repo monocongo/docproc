@@ -54,6 +54,16 @@ class Phase0LockTests(unittest.TestCase):
         with self.assertRaisesRegex(phase0_lock.LockError, "NOASSERTION"):
             phase0_lock.validate_policy(policy)
 
+    def test_policy_rejects_non_string_digest_and_commit(self):
+        policy = self.policy()
+        policy["source_decisions"][0]["commit"] = 123
+        with self.assertRaisesRegex(phase0_lock.LockError, "full lowercase commit"):
+            phase0_lock.validate_policy(policy)
+        policy = self.policy()
+        policy["artifacts"][0]["acquisition"]["expected"]["sha256"] = 123
+        with self.assertRaisesRegex(phase0_lock.LockError, "expected SHA-256"):
+            phase0_lock.validate_policy(policy)
+
     def test_prefetch_refuses_pending_graph_without_request(self):
         policy = self.policy()
         policy["artifacts"][0]["admission_status"] = "pending-human-review"
@@ -113,12 +123,15 @@ class Phase0LockTests(unittest.TestCase):
             observations = root / "observations"
             observations.mkdir()
             (observations / "approved-byte.json").write_text(json.dumps(observation), encoding="utf-8")
-            schema = root / "schema.json"
-            schema.write_text("{}\n", encoding="utf-8")
+            schema = Path(__file__).parents[1] / "schemas" / "phase0-lock-inventory-v1.json"
             phase0_lock.record_prefetch_failure(root, "approved-byte", "simulated rejected retry")
             evidence_address = phase0_lock.seal(policy, root, schema, "b" * 40)
             self.assertTrue(evidence_address.startswith("evr1:sha256:"))
             phase0_lock.verify(root, evidence_address)
+            artifact.write_bytes(b"tampered")
+            with self.assertRaisesRegex(phase0_lock.LockError, "does not match sealed inventory"):
+                phase0_lock.verify(root, evidence_address)
+            artifact.write_bytes(body)
             with self.assertRaisesRegex(phase0_lock.LockError, "invalid evidence address"):
                 phase0_lock.verify(root, "not-an-evidence-address")
 
@@ -176,6 +189,11 @@ class Phase0LockTests(unittest.TestCase):
     def test_non_integral_numbers_are_not_silently_canonicalized(self):
         with self.assertRaisesRegex(phase0_lock.LockError, "floating-point"):
             phase0_lock.jcs_bytes({"value": 0.5})
+
+    def test_evidence_root_inside_worktree_is_rejected(self):
+        inside = str(Path(__file__).parents[1] / "phase0" / "private-evidence")
+        with self.assertRaisesRegex(phase0_lock.LockError, "outside the Git worktree"):
+            phase0_lock.safe_root(inside)
 
 
 if __name__ == "__main__":

@@ -26,7 +26,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, NoReturn, Tuple
 
 ADDRESS_RE = re.compile(r"^(?:evp1|art1|evr1):sha256:[0-9a-f]{64}$")
 DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -38,7 +38,7 @@ class LockError(RuntimeError):
     """An invalid policy, observation, or evidence record."""
 
 
-def die(message: str) -> None:
+def die(message: str) -> NoReturn:
     raise LockError(message)
 
 
@@ -163,7 +163,10 @@ def validate_policy(policy: Any) -> Dict[str, Any]:
     if not isinstance(policy["source_decisions"], list) or not policy["source_decisions"]:
         die("policy.source_decisions must be a non-empty list")
     for source in policy["source_decisions"]:
-        if not isinstance(source, dict) or not HEX_COMMIT_RE.match(source.get("commit", "")):
+        if not isinstance(source, dict):
+            die("each source decision must be an object")
+        commit = source.get("commit")
+        if not isinstance(commit, str) or not HEX_COMMIT_RE.match(commit):
             die("each source decision must carry a full lowercase commit")
     seen = set()
     for item in policy_items(policy):
@@ -204,7 +207,10 @@ def validate_policy(policy: Any) -> Dict[str, Any]:
                 die("approved artifact %s requires an exact acquisition URL" % identifier)
             validate_url(url, "artifact %s acquisition.url" % identifier)
             expected = acquisition.get("expected")
-            if not isinstance(expected, dict) or not DIGEST_RE.match(expected.get("sha256", "")):
+            if not isinstance(expected, dict):
+                die("approved artifact %s requires an expected byte record" % identifier)
+            expected_sha256 = expected.get("sha256")
+            if not isinstance(expected_sha256, str) or not DIGEST_RE.match(expected_sha256):
                 die("approved artifact %s requires an expected SHA-256" % identifier)
             if not isinstance(expected.get("byte_length"), int) or expected["byte_length"] < 0:
                 die("approved artifact %s requires an expected byte_length" % identifier)
@@ -285,18 +291,23 @@ def download_exact(item: Dict[str, Any], root: Path) -> Dict[str, Any]:
                     chunk = response.read(1024 * 1024)
                     if not chunk:
                         break
+                    length += len(chunk)
+                    if length > expected["byte_length"]:
+                        die("response exceeds approved byte_length for %s" % item["id"])
                     destination.write(chunk)
                     digest.update(chunk)
-                    length += len(chunk)
             observed = digest.hexdigest()
             if observed != expected["sha256"] or length != expected["byte_length"]:
                 die("byte identity mismatch for %s (got %s / %d)" % (item["id"], observed, length))
             artifact_path = root / "artifacts" / ("sha256-%s" % observed)
             artifact_path.parent.mkdir(parents=True, exist_ok=True)
             if artifact_path.exists():
-                existing_digest, existing_length = sha256_file(artifact_path)
+                try:
+                    existing_digest, existing_length = sha256_file(artifact_path)
+                except OSError as exc:
+                    die("cannot read existing content-addressed artifact for %s: %s" % (item["id"], type(exc).__name__))
                 if existing_digest != observed or existing_length != length:
-                    die("content-addressed artifact collision: %s" % artifact_path)
+                    die("content-addressed artifact collision for %s at sha256-%s" % (item["id"], observed))
                 temporary.unlink()
             else:
                 os.replace(str(temporary), str(artifact_path))
@@ -397,7 +408,12 @@ def load_observations(root: Path, policy: Dict[str, Any]) -> List[Dict[str, Any]
         if observed.get("artifact_id") != item["id"] or observed.get("content_digest") != "sha256:" + expected["sha256"] or observed.get("byte_length") != expected["byte_length"]:
             die("observation does not match policy for %s" % item["id"])
         artifact = root / "artifacts" / ("sha256-" + expected["sha256"])
-        digest, length = sha256_file(artifact)
+        if not artifact.is_file():
+            die("missing content-addressed artifact for %s" % item["id"])
+        try:
+            digest, length = sha256_file(artifact)
+        except OSError as exc:
+            die("cannot read content-addressed artifact for %s: %s" % (item["id"], type(exc).__name__))
         if digest != expected["sha256"] or length != expected["byte_length"]:
             die("content-addressed file does not match observation for %s" % item["id"])
         observations.append(observed)
@@ -419,11 +435,52 @@ def load_optional_records(root: Path, directory: str) -> List[Dict[str, Any]]:
     return records
 
 
+def validate_lock_inventory_payload(payload: Dict[str, Any], schema: Any) -> None:
+    """Apply the intentionally small JSON Schema subset used by this payload."""
+    if not isinstance(schema, dict) or schema.get("$id") != "docproc:phase0-lock-inventory-v1":
+        die("schema is not phase0-lock-inventory-v1")
+    if schema.get("type") != "object" or schema.get("additionalProperties") is not False:
+        die("lock-inventory schema must be a closed object")
+    required = schema.get("required")
+    properties = schema.get("properties")
+    if not isinstance(required, list) or not all(isinstance(name, str) for name in required) or not isinstance(properties, dict):
+        die("lock-inventory schema has invalid required/properties declarations")
+    missing = set(required) - set(payload)
+    unexpected = set(payload) - set(properties)
+    if missing:
+        die("payload is missing schema members: %s" % ", ".join(sorted(missing)))
+    if unexpected:
+        die("payload has unexpected schema members: %s" % ", ".join(sorted(unexpected)))
+    expected_types = {"string": str, "array": list, "object": dict}
+    for name, constraints in properties.items():
+        if name not in payload:
+            continue
+        if not isinstance(constraints, dict):
+            die("schema constraints for %s must be an object" % name)
+        value = payload[name]
+        expected_type = constraints.get("type")
+        if expected_type is not None:
+            python_type = expected_types.get(expected_type)
+            if python_type is None or not isinstance(value, python_type):
+                die("payload member %s does not satisfy schema type" % name)
+        if "const" in constraints and value != constraints["const"]:
+            die("payload member %s does not satisfy schema const" % name)
+        pattern = constraints.get("pattern")
+        if pattern is not None:
+            if not isinstance(pattern, str) or not isinstance(value, str) or re.fullmatch(pattern, value) is None:
+                die("payload member %s does not satisfy schema pattern" % name)
+        min_items = constraints.get("minItems")
+        if min_items is not None:
+            if not isinstance(min_items, int) or not isinstance(value, list) or len(value) < min_items:
+                die("payload member %s does not satisfy schema minItems" % name)
+
+
 def seal(policy: Dict[str, Any], root: Path, schema: Path, source_commit: str) -> str:
     if policy["policy_version"] != "phase0-exact-byte-v1":
         die("sealing requires a reviewed phase0-exact-byte-v1 policy")
     if not HEX_COMMIT_RE.match(source_commit):
         die("source commit must be a full lowercase SHA")
+    schema_definition = load_json(schema)
     schema_bytes = schema.read_bytes()
     observations = load_observations(root, policy)
     inventory = []
@@ -462,6 +519,7 @@ def seal(policy: Dict[str, Any], root: Path, schema: Path, source_commit: str) -
         "content_classification": "metadata-only",
         "publication_disposition": "private-only",
     }
+    validate_lock_inventory_payload(payload, schema_definition)
     payload_address = "evp1:sha256:" + sha256_bytes(b"docproc:evidence-payload:v1\x00" + jcs_bytes(payload))
     envelope = {
         "envelope_version": "docproc-evidence-envelope-v1",
@@ -515,6 +573,27 @@ def verify(root: Path, evidence_address: str) -> None:
     calculated = "evr1:sha256:" + sha256_bytes(b"docproc:evidence-envelope:v1\x00" + jcs_bytes(envelope))
     if supplied != calculated or supplied != evidence_address:
         die("evidence address mismatch")
+    inventory = payload.get("inventory")
+    if not isinstance(inventory, list):
+        die("payload inventory is invalid")
+    for row in inventory:
+        if not isinstance(row, dict) or not isinstance(row.get("observation"), dict):
+            die("payload inventory entry is invalid")
+        observation = row["observation"]
+        content_digest = observation.get("content_digest")
+        byte_length = observation.get("byte_length")
+        artifact_id = observation.get("artifact_id")
+        if not isinstance(content_digest, str) or not SHA256_RE.match(content_digest) or not isinstance(byte_length, int) or byte_length < 0 or not isinstance(artifact_id, str):
+            die("payload inventory observation is invalid")
+        artifact = root / "artifacts" / ("sha256-" + content_digest.removeprefix("sha256:"))
+        if not artifact.is_file():
+            die("missing content-addressed artifact for %s" % artifact_id)
+        try:
+            digest, length = sha256_file(artifact)
+        except OSError as exc:
+            die("cannot read content-addressed artifact for %s: %s" % (artifact_id, type(exc).__name__))
+        if "sha256:" + digest != content_digest or length != byte_length:
+            die("content-addressed artifact does not match sealed inventory for %s" % artifact_id)
 
 
 def platform_command_observation(command_id: str) -> Dict[str, Any]:

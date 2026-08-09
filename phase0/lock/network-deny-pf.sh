@@ -22,21 +22,12 @@ fi
 
 anchor="com.apple/docproc_phase0_$$"
 rules_file=''
-was_enabled=0
-pf_info=$(sudo pfctl -s info) || {
-  echo "network-deny-pf: could not inspect PF status" >&2
-  exit 2
-}
-if printf '%s\n' "$pf_info" | grep -q 'Status: Enabled'; then
-  was_enabled=1
-fi
+pf_token=''
 
 cleanup() {
   [ -z "$rules_file" ] || rm -f "$rules_file"
   sudo pfctl -a "$anchor" -F all >/dev/null 2>&1 || true
-  if [ "$was_enabled" -eq 0 ]; then
-    sudo pfctl -d >/dev/null 2>&1 || true
-  fi
+  [ -z "$pf_token" ] || sudo pfctl -X "$pf_token" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT HUP INT TERM
 
@@ -63,10 +54,24 @@ RULES
 sudo pfctl -a "$anchor" -f "$rules_file"
 rm -f "$rules_file"
 rules_file=''
-sudo pfctl -E >/dev/null
+pf_enable=$(sudo pfctl -E) || {
+  echo "network-deny-pf: could not enable PF" >&2
+  exit 2
+}
+pf_token=$(printf '%s\n' "$pf_enable" | awk -F: '/Token/ {gsub(/[[:space:]]/, "", $NF); print $NF; exit}')
+case "$pf_token" in
+  ''|*[!0-9]*)
+    echo "network-deny-pf: pfctl -E returned no usable PF reference token" >&2
+    exit 2
+    ;;
+esac
+printf '%s\n' "$pf_enable"
 
-# Prove that the anchor is loaded before starting the measured command. The
-# caller must retain this output and separately record the expected failed
-# external-denial probe as a harness-preflight observation.
+# Prove that the anchor is loaded and retain the main ruleset that reaches it
+# before starting the measured command. The caller separately records the
+# expected failed external-denial probe as a harness-preflight observation.
+echo "network-deny-pf: active main ruleset"
+printf '%s\n' "$main_rules"
+echo "network-deny-pf: loaded anchor $anchor"
 sudo pfctl -a "$anchor" -sr
 "$@"
