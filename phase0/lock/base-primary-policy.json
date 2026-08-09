@@ -1,0 +1,404 @@
+{
+  "policy_version": "phase0-base-primary-v1",
+  "scope": "base-and-primary-candidate-admission",
+  "source_decisions": [
+    {
+      "id": "SRC-PLAN",
+      "commit": "367454a103c55a5d5a363b5be26cc43033cc2623"
+    },
+    {
+      "id": "SRC-LICENSE",
+      "commit": "a6a0ce8014391d7956801154a39b8061fa8940f8"
+    },
+    {
+      "id": "SRC-VLM",
+      "commit": "cabf7490a7a66fd8b4cf6f00ea6207c78dd50f5c"
+    },
+    {
+      "id": "SRC-P0",
+      "commit": "d5e0f3dfca08f6bc11ad02a6ee275aef0e43b2f9"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "python312-arm64-distribution",
+      "kind": "interpreter",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "selected Python distributor",
+        "revision": "CPython 3.12.13; distributor archive and publisher digest must be recorded before acquisition"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "PSF-2.0-and-bundled-notices",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "host-installed",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "uv-0123-arm64",
+      "kind": "host-tool",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "Astral uv",
+        "revision": "0.12.3 / 507230998c9541d67814b57463ac00e454ff6991"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "exact-source-license-pending-asset-review",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "host-installed",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "qpdf-1232",
+      "kind": "host-tool",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "qpdf",
+        "revision": "12.3.2 / a898bb3a7289d1d05789d6d3f0c5dd534943a8da"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "Apache-2.0-with-multicomponent-notice-pending-package-review",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "host-installed",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "sqlite-runtime",
+      "kind": "host-runtime",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "selected Python and macOS distributor",
+        "revision": "actual sqlite3 runtime version and supplier must be captured"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "public-domain-core-with-runtime-content-review",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "host-installed",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "docker-compose-runtime",
+      "kind": "host-tool",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "selected Docker and Compose distributor",
+        "revision": "actual macOS runtime, Compose version, and Docker Desktop terms approval must be captured"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "Apache-2.0-source-plus-platform-terms-review",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "host-installed",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "docling-21181",
+      "kind": "python-package-root",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "docling-project/docling",
+        "revision": "2.118.1 / 72bb55bc765afcc01f60391b1f23978583e08fa4"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "MIT-source-license-pending-wheel-and-transitive-review",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "direct-upstream-pull",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "rapidocr-392",
+      "kind": "python-package-root",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "RapidAI/RapidOCR",
+        "revision": "3.9.2 / 095232a4c94f7f0e6600ba5bba1177010ad696d4"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "Apache-2.0-source-license-pending-wheel-and-transitive-review",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "direct-upstream-pull",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "onnxruntime-1280",
+      "kind": "python-package-root",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "microsoft/onnxruntime",
+        "revision": "1.28.0 / da9b5e364c465de65c49d91e696cd6485270757f"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "MIT-and-ThirdPartyNotices-pending-arm64-wheel-review",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "direct-upstream-pull",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "docling-layout-heron",
+      "kind": "layout-model",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "docling-project/docling-layout-heron",
+        "revision": "8f39ad3c0b4c58e9c2d2c84a38465abf757272d8; model.safetensors sha256 00333a43451945aaf89db8ca9c0a17e75d1537c17db60fdb91aa95f4c7929e0c"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "metadata-only-model-license; reviewed exception required",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "direct-upstream-pull",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "tableformer-accurate",
+      "kind": "table-model",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "docling-project/docling-models",
+        "revision": "fc0f2d45e2218ea24bce5045f58a389aed16dc23; accurate weight sha256 2a7d6c924b3cd12fb99a09280ca9c33a89c5d60b93253617d2e088c1a40374d9"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "CDLA-Permissive-2.0-metadata-only; reviewed exception required",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "direct-upstream-pull",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "tableformer-fast-collateral",
+      "kind": "table-model",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "docling-project/docling-models",
+        "revision": "fc0f2d45e2218ea24bce5045f58a389aed16dc23; fast weight sha256 3119563aab5a7c96fda4d621119b63fd8806272b86c30936d15507616422f718"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "CDLA-Permissive-2.0-metadata-only; reviewed exception required",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "direct-upstream-pull",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "rapidocr-detector",
+      "kind": "ocr-model",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "RapidAI/RapidOCR ModelScope registry",
+        "revision": "PP-OCRv6_det_small.onnx / sha256 090f04abcd9d9a7498bc4ebf677e4cb9bdce1fe4197ddb7e529f1ef44e1ff94f"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "metadata-only-model-license; reviewed exception required",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "direct-upstream-pull",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "rapidocr-orientation-classifier",
+      "kind": "ocr-model",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "RapidAI/RapidOCR ModelScope registry",
+        "revision": "ch_ppocr_mobile_v2.0_cls_mobile.onnx / sha256 e47acedf663230f8863ff1ab0e64dd2d82b838fceb5957146dab185a89d6215c"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "metadata-only-model-license; reviewed exception required",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "direct-upstream-pull",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "rapidocr-recognizer",
+      "kind": "ocr-model",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "RapidAI/RapidOCR ModelScope registry",
+        "revision": "PP-OCRv6_rec_small.onnx / sha256 6f327246b50388f3c176ae304bd95767ea6dc0c9ae92153ef8cbe210b3c14884"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "metadata-only-model-license; reviewed exception required",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "direct-upstream-pull",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "ollama-0326-darwin-arm64",
+      "kind": "host-service",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "ollama/ollama",
+        "revision": "v0.32.6 / c82ebbd5bfb9ec7d94d3894e9023db0fb224ff50"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "MIT-source-license-pending-release-asset-review",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "host-installed",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "qwen35-9b-q4-k-m",
+      "kind": "ollama-model",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "ollama.com/library/qwen3.5:9b-q4_K_M",
+        "revision": "manifest 6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7; config be595b49fe22012bd1f5605ec14c7ffa58331783a88a4fd8c22e5fc8ec42cf9f; model layer dec52a44569a2a25341c4e4d3fee25846eed4f6f0b936278e3a3c900bb99d37c; license layer 7339fa418c9ad3e8e12e74ad0fd26a9cc4be8703f9c110728a992b193be85cb2; parameters layer 9371364b27a52acac9d87f88bd93c9db1174d8d6ec57f6888925cdc1788871ff"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "embedded-and-upstream-Apache-2.0; unverified-conversion-lineage reviewed exception required",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "direct-upstream-pull",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "minio-arm64-oci",
+      "kind": "oci-image",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "docker.io/minio/minio",
+        "revision": "RELEASE.2025-09-07T16-13-09Z; index sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e; arm64 manifest sha256:9966a92a734f9411e32f4f41d7d9d826fcdc0f68c4e20b70295bd4e7c11f8a2f; config sha256:8f08aee614800a237906bd48114d733e5ac5bfac4ccdf731f141b0e880d7a253"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "AGPL-3.0-NOTICE-and-UBI-terms; reviewed exception required",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "direct-upstream-pull",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "opensearch-arm64-oci",
+      "kind": "oci-image",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "docker.io/opensearchproject/opensearch",
+        "revision": "3.8.0; index sha256:bcc1797519726ceb6d651d4a3e60b7c30da91793914a8dfe75fd441d4f641509; arm64 manifest sha256:42e9343f4f4f2993c29e1ca6bc1b23e19d05478cc3bada8e136964f8ab702d20; config sha256:0f05e388e343d971eb3a083fa0b19fec6b2f2ac8dc8e04cda88753ffadbdeceb"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "Apache-2.0-NOTICE-and-image-SBOM-required",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "direct-upstream-pull",
+      "publication_disposition": "do-not-publish"
+    },
+    {
+      "id": "naf-linked-v3",
+      "kind": "restricted-data",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "NAF publisher origins",
+        "revision": "owned by issue 21; exact annotation/image revisions, archive, license, and ledger must be attached before acquisition"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "dataset-terms-and-source-rights-review-required",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "manual-data-acquisition",
+      "publication_disposition": "private-only"
+    },
+    {
+      "id": "sbom-license-tooling",
+      "kind": "analysis-tool",
+      "required": true,
+      "admission_status": "pending-human-review",
+      "origin": {
+        "authority": "not yet selected",
+        "revision": "a separately reviewed, pinned SBOM/license tool is required before Gate LIC can resolve"
+      },
+      "acquisition": {
+        "url": null
+      },
+      "license": {
+        "evidence_class": "tool-selection-pending",
+        "review_status": "pending-human-review"
+      },
+      "distribution_mode": "host-installed",
+      "publication_disposition": "do-not-publish"
+    }
+  ]
+}
