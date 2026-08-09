@@ -21,12 +21,18 @@ if [ "$#" -eq 0 ]; then
 fi
 
 anchor="com.apple/docproc_phase0_$$"
+rules_file=''
 was_enabled=0
-if sudo pfctl -s info | grep -q 'Status: Enabled'; then
+pf_info=$(sudo pfctl -s info) || {
+  echo "network-deny-pf: could not inspect PF status" >&2
+  exit 2
+}
+if printf '%s\n' "$pf_info" | grep -q 'Status: Enabled'; then
   was_enabled=1
 fi
 
 cleanup() {
+  [ -z "$rules_file" ] || rm -f "$rules_file"
   sudo pfctl -a "$anchor" -F all >/dev/null 2>&1 || true
   if [ "$was_enabled" -eq 0 ]; then
     sudo pfctl -d >/dev/null 2>&1 || true
@@ -37,18 +43,26 @@ trap cleanup EXIT HUP INT TERM
 # macOS's stock /etc/pf.conf invokes the com.apple/* anchor. Refuse to claim
 # enforcement when that hook is absent; loading an unreferenced PF anchor has
 # no effect.
-if ! sudo pfctl -sr | grep -Fq 'anchor "com.apple/*"'; then
+main_rules=$(sudo pfctl -sr) || {
+  echo "network-deny-pf: could not inspect active PF rules" >&2
+  exit 2
+}
+if ! printf '%s\n' "$main_rules" | grep -Fq 'anchor "com.apple/*"'; then
   echo "network-deny-pf: /etc/pf.conf does not invoke com.apple/*; refusing unenforced run" >&2
   exit 2
 fi
 
-cat <<'RULES' | sudo pfctl -a "$anchor" -f -
+rules_file=$(mktemp "${TMPDIR:-/tmp}/docproc-phase0-pf.XXXXXX") || exit 2
+cat >"$rules_file" <<'RULES'
 # Permit only localhost traffic required by host Ollama and localhost-published
 # MinIO/OpenSearch. All external IPv4 and IPv6 egress is denied.
 pass out quick on lo0 all
 block drop out quick inet from any to any
 block drop out quick inet6 from any to any
 RULES
+sudo pfctl -a "$anchor" -f "$rules_file"
+rm -f "$rules_file"
+rules_file=''
 sudo pfctl -E >/dev/null
 
 # Prove that the anchor is loaded before starting the measured command. The

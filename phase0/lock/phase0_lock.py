@@ -517,14 +517,30 @@ def verify(root: Path, evidence_address: str) -> None:
         die("evidence address mismatch")
 
 
-def command_observation(command: List[str]) -> Dict[str, Any]:
-    """Capture a bounded tool/platform version response without a local path."""
+def platform_command_observation(command_id: str) -> Dict[str, Any]:
+    """Capture a bounded macOS platform fact from a fixed, non-user command.
+
+    Do not execute an unadmitted host tool merely to learn its version. Tool
+    versions are admitted through the exact-byte policy; this helper runs only
+    the three fixed operating-system probes required for a platform baseline.
+    """
     try:
-        result = subprocess.run(command, text=True, capture_output=True, timeout=15)
+        if command_id == "sw_vers":
+            result = subprocess.run(["/usr/bin/sw_vers"], text=True, capture_output=True, timeout=15)
+        elif command_id == "cpu_brand":
+            result = subprocess.run(["/usr/sbin/sysctl", "-n", "machdep.cpu.brand_string"], text=True, capture_output=True, timeout=15)
+        elif command_id == "memory_bytes":
+            result = subprocess.run(["/usr/sbin/sysctl", "-n", "hw.memsize"], text=True, capture_output=True, timeout=15)
+        else:
+            die("unapproved platform command: %s" % command_id)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"status": "unavailable", "detail": type(exc).__name__}
     output = (result.stdout + result.stderr).strip()
-    output = re.sub(r"(?<![:A-Za-z0-9])/[^\\s'\"`]+", "<redacted-path>", output)
+    # Version probes have no legitimate need to emit a local filesystem path.
+    # Remove the entire response rather than trying to partially rewrite an
+    # arbitrary token and accidentally disclose a local path.
+    if re.search(r"(?:^|[\s=])(?:/|file:///|unix:///)", output):
+        output = "<redacted-local-path-output>"
     return {
         "status": "observed" if result.returncode == 0 else "failed",
         "exit_code": result.returncode,
@@ -539,23 +555,18 @@ def host_record() -> Dict[str, Any]:
         location = shutil.which(name)
         if location:
             digest, length = sha256_file(Path(location))
-            executables.append({
-                "name": name,
-                "sha256": "sha256:" + digest,
-                "byte_length": length,
-                "version": command_observation([location, "--version"]),
-            })
+            executables.append({"name": name, "sha256": "sha256:" + digest, "byte_length": length})
         else:
             executables.append({"name": name, "status": "not-present"})
     platform_records = {
-        "sw_vers": command_observation(["sw_vers"]),
-        "cpu_brand": command_observation(["sysctl", "-n", "machdep.cpu.brand_string"]),
-        "memory_bytes": command_observation(["sysctl", "-n", "hw.memsize"]),
+        "sw_vers": platform_command_observation("sw_vers"),
+        "cpu_brand": platform_command_observation("cpu_brand"),
+        "memory_bytes": platform_command_observation("memory_bytes"),
     }
     return {
         "record_version": "phase0-host-baseline-v1",
         "recorded_at_utc": utc_now(),
-        "monotonic_ns": time.monotonic_ns(),
+        "monotonic_ns": str(time.monotonic_ns()),
         "clock_source": "Python datetime.now(timezone.utc) and time.monotonic_ns",
         "platform": platform.platform(),
         "machine": platform.machine(),

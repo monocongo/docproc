@@ -14,6 +14,7 @@ The control implements the Phase 0 boundary from the approved blueprint (`367454
 - `lock/phase0_lock.py` rejects floating or credential-bearing URLs, redirects, unreviewed licenses, `NOASSERTION`, graph entries not explicitly approved for acquisition, byte/size mismatches, and any evidence root inside the Git worktree.
 - `schemas/phase0-lock-inventory-v1.json` fixes the payload shape. The tool produces content-addressed payload (`evp1`), artifact-descriptor (`art1`), and envelope (`evr1`) addresses using the README's domain-separated SHA-256 preimages. It limits records to the integer/string JSON subset that it can canonicalize correctly without introducing an unadmitted dependency.
 - `lock/network-deny-pf.sh` is a macOS PF wrapper for a measured rerun. It refuses to run if macOS's active PF configuration does not invoke its `com.apple/*` anchor, prints the actual loaded rules, permits only `lo0`, and blocks IPv4/IPv6 host egress for the child command. It needs a human administrator review and does not claim that Docker Desktop VM traffic is covered; later service runs also need a no-egress container-network control.
+- Host-baseline capture hashes listed host tools but does not execute them merely to learn a version. Exact tool versions are an admission-policy input; only the fixed macOS platform probes are executed for the baseline.
 
 ## Human review required before acquisition
 

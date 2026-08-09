@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import copy
+import copy
 import hashlib
 import importlib.util
 import json
+import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 MODULE = Path(__file__).parents[1] / "phase0" / "lock" / "phase0_lock.py"
@@ -60,6 +63,18 @@ class Phase0LockTests(unittest.TestCase):
             with self.assertRaisesRegex(phase0_lock.LockError, "until every required artifact is approved"):
                 phase0_lock.prefetch(phase0_lock.validate_policy(policy), Path(temporary))
 
+    def test_prefetch_refuses_denied_graph_without_request(self):
+        policy = self.policy()
+        denied = copy.deepcopy(policy["artifacts"][0])
+        denied["id"] = "denied-byte"
+        denied["required"] = False
+        denied["admission_status"] = "denied"
+        denied["acquisition"] = {"url": None}
+        policy["artifacts"].append(denied)
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(phase0_lock.LockError, "denied artifacts in graph"):
+                phase0_lock.prefetch(phase0_lock.validate_policy(policy), Path(temporary))
+
     def test_closure_rejects_an_unapproved_component(self):
         catalog = self.policy()
         catalog["policy_version"] = "phase0-base-primary-v1"
@@ -104,13 +119,52 @@ class Phase0LockTests(unittest.TestCase):
             evidence_address = phase0_lock.seal(policy, root, schema, "b" * 40)
             self.assertTrue(evidence_address.startswith("evr1:sha256:"))
             phase0_lock.verify(root, evidence_address)
+            with self.assertRaisesRegex(phase0_lock.LockError, "invalid evidence address"):
+                phase0_lock.verify(root, "not-an-evidence-address")
 
-            payload_path = root / "records" / evidence_address.replace(":", "_") / "payload.json"
+            record = root / "records" / evidence_address.replace(":", "_")
+            envelope_path = record / "envelope.json"
+            original_envelope = envelope_path.read_text(encoding="utf-8")
+            envelope = json.loads(original_envelope)
+            envelope["input_ids"].append("tampered")
+            envelope_path.write_text(json.dumps(envelope), encoding="utf-8")
+            with self.assertRaisesRegex(phase0_lock.LockError, "evidence address mismatch"):
+                phase0_lock.verify(root, evidence_address)
+            envelope_path.write_text(original_envelope, encoding="utf-8")
+
+            payload_path = record / "payload.json"
             payload = json.loads(payload_path.read_text(encoding="utf-8"))
             self.assertEqual(payload["failures"][0]["message"], "simulated rejected retry")
             payload_path.write_text("{}", encoding="utf-8")
             with self.assertRaisesRegex(phase0_lock.LockError, "payload address mismatch"):
                 phase0_lock.verify(root, evidence_address)
+
+    def test_platform_command_output_is_redacted_and_bounded(self):
+        completed = subprocess.CompletedProcess(
+            args=["/usr/bin/sw_vers"], returncode=0, stdout="reading /private/token", stderr=""
+        )
+        with mock.patch.object(phase0_lock.subprocess, "run", return_value=completed):
+            observation = phase0_lock.platform_command_observation("sw_vers")
+        self.assertEqual(observation["output"], "<redacted-local-path-output>")
+
+        long_output = "x" * 5000
+        completed = subprocess.CompletedProcess(
+            args=["/usr/bin/sw_vers"], returncode=0, stdout=long_output, stderr=""
+        )
+        with mock.patch.object(phase0_lock.subprocess, "run", return_value=completed):
+            observation = phase0_lock.platform_command_observation("sw_vers")
+        self.assertEqual(observation["output"], long_output[:4096])
+
+    def test_host_record_hashes_tools_without_executing_them(self):
+        with mock.patch.object(phase0_lock.shutil, "which", return_value="/private/tool") as which, mock.patch.object(
+            phase0_lock, "sha256_file", return_value=("a" * 64, 12)
+        ), mock.patch.object(phase0_lock, "platform_command_observation", return_value={"status": "observed"}) as platform_probe:
+            record = phase0_lock.host_record()
+        self.assertEqual(record["executables"][0], {
+            "name": "uv", "sha256": "sha256:" + "a" * 64, "byte_length": 12
+        })
+        self.assertEqual(which.call_count, 5)
+        self.assertEqual(platform_probe.call_count, 3)
 
     def test_json_duplicate_members_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
