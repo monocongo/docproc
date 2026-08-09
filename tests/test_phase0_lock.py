@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import copy
 import hashlib
 import importlib.util
 import json
@@ -160,6 +159,16 @@ class Phase0LockTests(unittest.TestCase):
             observation = phase0_lock.platform_command_observation("sw_vers")
         self.assertEqual(observation["output"], "<redacted-local-path-output>")
 
+        completed = subprocess.CompletedProcess(
+            args=["/usr/bin/sw_vers"],
+            returncode=0,
+            stdout="release https://example.test/releases/v1",
+            stderr="",
+        )
+        with mock.patch.object(phase0_lock.subprocess, "run", return_value=completed):
+            observation = phase0_lock.platform_command_observation("sw_vers")
+        self.assertEqual(observation["output"], "release https://example.test/releases/v1")
+
         long_output = "x" * 5000
         completed = subprocess.CompletedProcess(
             args=["/usr/bin/sw_vers"], returncode=0, stdout=long_output, stderr=""
@@ -178,6 +187,15 @@ class Phase0LockTests(unittest.TestCase):
         })
         self.assertEqual(which.call_count, 5)
         self.assertEqual(platform_probe.call_count, 3)
+
+    def test_host_record_string_encodes_out_of_range_monotonic_clock(self):
+        out_of_range_clock = 9007199254740992
+        with mock.patch.object(phase0_lock.shutil, "which", return_value=None), mock.patch.object(
+            phase0_lock, "platform_command_observation", return_value={"status": "observed"}
+        ), mock.patch.object(phase0_lock.time, "monotonic_ns", return_value=out_of_range_clock):
+            record = phase0_lock.host_record()
+        self.assertEqual(record["monotonic_ns"], str(out_of_range_clock))
+        phase0_lock.jcs_bytes(record)
 
     def test_json_duplicate_members_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
