@@ -4,6 +4,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -30,10 +31,15 @@ class Phase0LockTests(unittest.TestCase):
                 "kind": "test-byte",
                 "required": True,
                 "admission_status": "approved-for-acquisition",
-                "origin": {"authority": "test authority", "revision": "rev-1"},
+                "origin": {
+                    "authority": "test authority",
+                    "revision": "rev-1",
+                    "immutable_reference": "sha256:" + "c" * 64,
+                },
                 "acquisition": {
                     "url": "https://example.invalid/admitted-byte",
                     "expected": {"sha256": hashlib.sha256(body).hexdigest(), "byte_length": len(body)},
+                    "descriptor": {"media_type": "application/octet-stream", "content_encoding": "identity"},
                 },
                 "license": {"evidence_class": "exact-license-text", "review_status": "reviewed"},
                 "distribution_mode": "direct-upstream-pull",
@@ -121,35 +127,141 @@ class Phase0LockTests(unittest.TestCase):
             }
             observations = root / "observations"
             observations.mkdir()
-            (observations / "approved-byte.json").write_text(json.dumps(observation), encoding="utf-8")
+            observation_path = observations / "approved-byte.json"
+            observation_path.write_text("[]", encoding="utf-8")
             schema = Path(__file__).parents[1] / "schemas" / "phase0-lock-inventory-v1.json"
-            phase0_lock.record_prefetch_failure(root, "approved-byte", "simulated rejected retry")
+            with self.assertRaisesRegex(phase0_lock.LockError, "observation must be an object"):
+                phase0_lock.seal(policy, root, schema, "b" * 40)
+            observation_path.write_text(json.dumps(observation), encoding="utf-8")
+            phase0_lock.record_prefetch_failure(root, "approved-byte")
             evidence_address = phase0_lock.seal(policy, root, schema, "b" * 40)
             self.assertTrue(evidence_address.startswith("evr1:sha256:"))
-            phase0_lock.verify(root, evidence_address)
+            phase0_lock.verify(root, evidence_address, schema)
             artifact.write_bytes(b"tampered")
             with self.assertRaisesRegex(phase0_lock.LockError, "does not match sealed inventory"):
-                phase0_lock.verify(root, evidence_address)
+                phase0_lock.verify(root, evidence_address, schema)
             artifact.write_bytes(body)
             with self.assertRaisesRegex(phase0_lock.LockError, "invalid evidence address"):
-                phase0_lock.verify(root, "not-an-evidence-address")
+                phase0_lock.verify(root, "not-an-evidence-address", schema)
 
             record = root / "records" / evidence_address.replace(":", "_")
             envelope_path = record / "envelope.json"
             original_envelope = envelope_path.read_text(encoding="utf-8")
+            envelope_path.write_text("[]", encoding="utf-8")
+            with self.assertRaisesRegex(phase0_lock.LockError, "evidence envelope is invalid"):
+                phase0_lock.verify(root, evidence_address, schema)
+            envelope_path.write_text(original_envelope, encoding="utf-8")
             envelope = json.loads(original_envelope)
             envelope["input_ids"].append("tampered")
             envelope_path.write_text(json.dumps(envelope), encoding="utf-8")
-            with self.assertRaisesRegex(phase0_lock.LockError, "evidence address mismatch"):
-                phase0_lock.verify(root, evidence_address)
+            with self.assertRaisesRegex(phase0_lock.LockError, "does not bind"):
+                phase0_lock.verify(root, evidence_address, schema)
             envelope_path.write_text(original_envelope, encoding="utf-8")
 
             payload_path = record / "payload.json"
-            payload = json.loads(payload_path.read_text(encoding="utf-8"))
-            self.assertEqual(payload["failures"][0]["message"], "simulated rejected retry")
+            original_payload = payload_path.read_text(encoding="utf-8")
+            payload = json.loads(original_payload)
+            self.assertEqual(payload["failures"][0]["message"], "admitted request did not complete byte verification")
+            payload["inventory"][0]["artifact_descriptor"]["address"] = "art1:sha256:" + "0" * 64
+            payload_path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(phase0_lock.LockError, "artifact descriptor address mismatch"):
+                phase0_lock.verify(root, evidence_address, schema)
             payload_path.write_text("{}", encoding="utf-8")
-            with self.assertRaisesRegex(phase0_lock.LockError, "payload address mismatch"):
-                phase0_lock.verify(root, evidence_address)
+            with self.assertRaisesRegex(phase0_lock.LockError, "missing schema members"):
+                phase0_lock.verify(root, evidence_address, schema)
+
+    def test_closure_requires_approved_required_records_for_each_required_component(self):
+        catalog = self.policy()
+        catalog["policy_version"] = "phase0-base-primary-v1"
+        catalog["artifacts"][0].pop("component_id")
+        catalog["artifacts"][0]["id"] = "approved-component"
+        second_catalog_item = copy.deepcopy(catalog["artifacts"][0])
+        second_catalog_item["id"] = "second-component"
+        catalog["artifacts"].append(second_catalog_item)
+
+        exact = self.policy()
+        pending = copy.deepcopy(exact["artifacts"][0])
+        pending["id"] = "second-byte"
+        pending["component_id"] = "second-component"
+        pending["required"] = False
+        pending["admission_status"] = "pending-human-review"
+        pending["acquisition"] = {"url": None}
+        pending["license"]["review_status"] = "pending-human-review"
+        exact["artifacts"].append(pending)
+
+        with self.assertRaisesRegex(phase0_lock.LockError, "required approved exact-byte record"):
+            phase0_lock.validate_closure(
+                phase0_lock.validate_policy(catalog), phase0_lock.validate_policy(exact)
+            )
+
+    def test_policy_rejects_noncanonical_values_query_urls_and_boolean_lengths_before_prefetch(self):
+        policy = self.policy()
+        policy["source_decisions"][0]["commit"] = 0.5
+        with self.assertRaisesRegex(phase0_lock.LockError, "floating-point"):
+            phase0_lock.validate_policy(policy)
+
+        policy = self.policy()
+        policy["artifacts"][0]["acquisition"]["url"] += "?"
+        with self.assertRaisesRegex(phase0_lock.LockError, "without query"):
+            phase0_lock.validate_policy(policy)
+
+        policy = self.policy()
+        policy["artifacts"][0]["acquisition"]["expected"]["sha256"] += "\n"
+        with self.assertRaisesRegex(phase0_lock.LockError, "expected SHA-256"):
+            phase0_lock.validate_policy(policy)
+
+        policy = self.policy()
+        policy["artifacts"][0]["acquisition"]["expected"]["byte_length"] = True
+        with self.assertRaisesRegex(phase0_lock.LockError, "expected byte_length"):
+            phase0_lock.validate_policy(policy)
+
+        policy = self.policy()
+        policy["artifacts"][0]["acquisition"]["descriptor"]["media_type"] = "application/json"
+        with self.assertRaisesRegex(phase0_lock.LockError, "requires a charset"):
+            phase0_lock.validate_policy(policy)
+
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            phase0_lock, "download_exact", side_effect=OSError("private/path")
+        ):
+            root = Path(temporary)
+            with self.assertRaisesRegex(phase0_lock.LockError, "prefetch failed"):
+                phase0_lock.prefetch(self.policy(), root)
+            failures = list((root / "failures").glob("*.json"))
+            self.assertEqual(len(failures), 1)
+            self.assertNotIn("private/path", failures[0].read_text(encoding="utf-8"))
+
+    def test_pf_wrapper_refuses_to_claim_unmanaged_host_egress_denial(self):
+        wrapper = Path(__file__).parents[1] / "phase0" / "lock" / "network-deny-pf.sh"
+        with tempfile.TemporaryDirectory() as temporary:
+            bin_dir = Path(temporary) / "bin"
+            bin_dir.mkdir()
+            uname = bin_dir / "uname"
+            uname.write_text("#!/bin/sh\necho Darwin\n", encoding="utf-8")
+            uname.chmod(0o755)
+            environment = {**os.environ, "PATH": str(bin_dir) + os.pathsep + os.environ["PATH"]}
+            result = subprocess.run(
+                ["sh", str(wrapper), "--", "sh", "-c", "exit 0"], text=True, capture_output=True, env=environment
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("refusing run", result.stderr)
+
+    def test_safe_root_uses_the_harness_checkout_and_private_permissions(self):
+        inside_checkout = MODULE.parents[2] / "phase0" / "private-evidence"
+        with tempfile.TemporaryDirectory() as temporary:
+            subprocess.run(["git", "init", "-q", temporary], check=True)
+            original_cwd = Path.cwd()
+            try:
+                os.chdir(temporary)
+                with self.assertRaisesRegex(phase0_lock.LockError, "outside the Git worktree"):
+                    phase0_lock.safe_root(str(inside_checkout))
+            finally:
+                os.chdir(original_cwd)
+
+            root = phase0_lock.safe_root(str(Path(temporary) / "private"))
+            phase0_lock.write_json_once(root, root / "nested" / "record.json", {"record": "private"})
+            self.assertEqual((root.stat().st_mode & 0o777), 0o700)
+            self.assertEqual(((root / "nested").stat().st_mode & 0o777), 0o700)
+            self.assertEqual(((root / "nested" / "record.json").stat().st_mode & 0o777), 0o600)
 
     def test_platform_command_output_is_redacted_and_bounded(self):
         completed = subprocess.CompletedProcess(

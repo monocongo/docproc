@@ -11,14 +11,14 @@ The control implements the Phase 0 boundary from the approved blueprint (`367454
 - `lock/base-primary-policy.json` is an admission **catalog**, not an approval. It names only the base graph and the primary `qwen3.5:9b-q4_K_M` candidate. It does not name either fallback as an initial acquisition.
 - Every catalog item is `pending-human-review`. The tool refuses to issue any network request while that is true. In particular, it preserves the metadata-only Heron/TableFormer/RapidOCR evidence and the Ollama conversion-lineage gap as exceptions requiring review; it does not call either verified provenance.
 - The catalog also makes the unselected SBOM/license tool an explicit unresolved input. A scanner must be separately selected, version-pinned, acquired, and reviewed; this harness must not quietly install one.
-- `lock/phase0_lock.py` rejects floating or credential-bearing URLs, redirects, unreviewed licenses, `NOASSERTION`, graph entries not explicitly approved for acquisition, byte/size mismatches, and any evidence root inside the Git worktree.
-- `schemas/phase0-lock-inventory-v1.json` fixes the payload shape. The tool produces content-addressed payload (`evp1`), artifact-descriptor (`art1`), and envelope (`evr1`) addresses using the README's domain-separated SHA-256 preimages. It limits records to the integer/string JSON subset that it can canonicalize correctly without introducing an unadmitted dependency.
-- `lock/network-deny-pf.sh` is a macOS PF wrapper for a measured rerun. It refuses to run if macOS's active PF configuration does not invoke its `com.apple/*` anchor, prints the actual loaded rules, permits only `lo0`, and blocks IPv4/IPv6 host egress for the child command. It needs a human administrator review and does not claim that Docker Desktop VM traffic is covered; later service runs also need a no-egress container-network control.
+- `lock/phase0_lock.py` rejects credential- or query-bearing URLs, redirects, unreviewed licenses, `NOASSERTION`, non-canonical JSON, graph entries not explicitly approved for acquisition, byte/size or encoding mismatches, and any evidence root inside the checkout that contains this harness. An approved exact-byte row also requires a `git:<commit>` or `sha256:<digest>` immutable origin reference and reviewed artifact-descriptor metadata.
+- `schemas/phase0-lock-inventory-v1.json` fixes the complete nested payload shape. The tool produces content-addressed payload (`evp1`), artifact-descriptor (`art1`), and envelope (`evr1`) addresses using the README's domain-separated SHA-256 preimages, verifies the schema and descriptor bindings on read, and creates owner-only private evidence directories/files. It limits records to the integer/string JSON subset that it can canonicalize correctly without introducing an unadmitted dependency.
+- `lock/network-deny-pf.sh` is deliberately disabled. An anchor in an arbitrary macOS PF ruleset cannot attest complete egress denial because earlier anchors, stateful inbound traffic, and escaped descendants can bypass it. The script performs no PF mutation and refuses every measured command; a separately reviewed isolated guest or container-network boundary is required before any parser/VLM rerun. It does not claim that Docker Desktop VM traffic is covered.
 - Host-baseline capture hashes listed host tools but does not execute them merely to learn a version. Exact tool versions are an admission-policy input; only the fixed macOS platform probes are executed for the baseline.
 
 ## Human review required before acquisition
 
-The machine has sufficient disk and the expected Apple M5/32 GB hardware, but it currently has no admitted Phase 0 environment. The observed local baseline is not an admission record: macOS is `26.6.1 (25G76)`, the installed `uv` is `0.12.3`, Docker's client is present but its daemon is unavailable, and `ollama` and `qpdf` are absent.
+This checkout has no admitted Phase 0 environment. Host hardware, operating-system, installed-tool, and service observations are private-only baseline evidence; they are intentionally not recorded in this repository or this document.
 
 A human reviewer must make and retain each of these decisions before changing an artifact to `approved-for-acquisition` in an exact-byte prefetch policy:
 
@@ -29,7 +29,7 @@ A human reviewer must make and retain each of these decisions before changing an
 5. Hand #21 the NAF source/terms review. NAF bytes, converted PDFs, ledgers, and image-bearing output remain outside Git and private.
 6. Record the authorization/T0 source and select a private evidence root outside this checkout. The root must not be synced, published, or committed.
 
-The catalog deliberately cannot be edited into a runnable prefetch file by changing just a status: an approved byte record requires an exact HTTPS URL, expected SHA-256, expected byte length, authoritative immutable origin, reviewed license evidence class, distribution mode, and publication disposition. Components with several downloaded bytes must expand to several records. This makes an incomplete resolution fail before the first network request.
+The catalog deliberately cannot be edited into a runnable prefetch file by changing just a status: an approved byte record requires an exact query-free HTTPS URL, expected SHA-256, expected byte length, authoritative immutable origin reference, reviewed license evidence class, reviewed descriptor metadata (media type and content encoding, plus charset/format schema when applicable), distribution mode, and publication disposition. Every record for a required catalog component must itself be required and approved. Components with several downloaded bytes must expand to several records. This makes an incomplete resolution fail before the first network request.
 
 ## Controlled workflow
 
@@ -53,11 +53,15 @@ python3 phase0/lock/phase0_lock.py prefetch \
   --catalog phase0/lock/base-primary-policy.json \
   --policy "$PRIVATE_ROOT/reviewed-exact-byte-policy.json" \
   --root "$PRIVATE_ROOT"
+```
 
-# Run a listed preflight denial probe first, then the actual parser/VLM harness.
-# Retain PF rules, command, exit status, and the expected rejected external probe.
-phase0/lock/network-deny-pf.sh -- \
-  sh -c 'curl --connect-timeout 2 --max-time 3 https://example.com && exit 1 || exit 0'
+`network-deny-pf.sh` currently refuses every command rather than make an unverifiable no-egress claim. Do not run a parser/VLM harness until a separately reviewed isolated guest or container-network boundary is available. That future measured rerun must include a denial probe that fails if an external connection succeeds, for example:
+
+```sh
+if curl --connect-timeout 2 --max-time 3 https://example.com; then
+  echo "unexpected egress" >&2
+  exit 1
+fi
 ```
 
 Only after the selected SBOM/license tool has scanned the resolved closure, notices have been generated, every required observation is present, and the final policy/source commit are fixed, seal the private evidence record:
@@ -71,6 +75,7 @@ python3 phase0/lock/phase0_lock.py seal \
   --source-commit "$(git rev-parse HEAD)"
 python3 phase0/lock/phase0_lock.py verify \
   --root "$PRIVATE_ROOT" \
+  --schema schemas/phase0-lock-inventory-v1.json \
   --evidence-address 'evr1:sha256:...'
 ```
 
