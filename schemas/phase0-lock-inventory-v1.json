@@ -92,7 +92,7 @@
         "content_type": {"type": "string"},
         "observed_started_at_utc": {"type": "string", "pattern": ".*Z$"},
         "observed_completed_at_utc": {"type": "string", "pattern": ".*Z$"},
-        "redirects": {"type": "array", "minItems": 0},
+        "redirects": {"type": "array", "maxItems": 0},
         "network_result": {"const": "admitted-request-completed"}
       },
       "additionalProperties": false

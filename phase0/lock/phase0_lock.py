@@ -157,20 +157,49 @@ def ensure_private_tree(root: Path, directory: Path) -> None:
         ensure_private_directory(current)
 
 
+def ensure_existing_private_tree(root: Path, directory: Path, context: str) -> None:
+    try:
+        relative = directory.relative_to(root)
+    except ValueError:
+        die("%s escapes the private evidence root" % context)
+    ensure_private_directory(root)
+    current = root
+    for part in relative.parts:
+        current /= part
+        try:
+            info = current.lstat()
+        except OSError as exc:
+            die("cannot inspect %s: %s" % (context, type(exc).__name__))
+        if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+            die("%s parent must be a regular private directory" % context)
+        if info.st_uid != os.getuid() or info.st_mode & 0o077:
+            die("%s parent must be owned and accessible only by this user" % context)
+
+
+def ensure_private_file(root: Path, path: Path, context: str) -> None:
+    """Require an owner-only, non-symlink file inside the private evidence root."""
+    try:
+        path.relative_to(root)
+    except ValueError:
+        die("%s escapes the private evidence root" % context)
+    ensure_existing_private_tree(root, path.parent, context)
+    try:
+        info = path.lstat()
+    except OSError as exc:
+        die("cannot inspect %s: %s" % (context, type(exc).__name__))
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+        die("%s must be a regular private file" % context)
+    if info.st_uid != os.getuid() or info.st_mode & 0o077:
+        die("%s must be owned and accessible only by this user" % context)
+
+
 def write_once(root: Path, path: Path, data: bytes) -> None:
     """Create private content once, or prove an existing file has identical bytes."""
     ensure_private_tree(root, path.parent)
     try:
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError:
-        try:
-            info = path.lstat()
-        except OSError as exc:
-            die("cannot inspect immutable private evidence: %s" % type(exc).__name__)
-        if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
-            die("immutable private evidence is not a regular file")
-        if info.st_uid != os.getuid() or info.st_mode & 0o077:
-            die("immutable private evidence must be owned and accessible only by this user")
+        ensure_private_file(root, path, "immutable private evidence")
         if path.read_bytes() != data:
             die("immutable path already contains different bytes: %s" % path)
     else:
@@ -428,6 +457,7 @@ def download_exact(item: Dict[str, Any], root: Path) -> Dict[str, Any]:
             artifact_path = root / "artifacts" / ("sha256-%s" % observed)
             ensure_private_tree(root, artifact_path.parent)
             if artifact_path.exists():
+                ensure_private_file(root, artifact_path, "content-addressed artifact for %s" % item["id"])
                 try:
                     existing_digest, existing_length = sha256_file(artifact_path)
                 except OSError as exc:
@@ -539,6 +569,7 @@ def load_observations(root: Path, policy: Dict[str, Any]) -> List[Dict[str, Any]
         path = root / "observations" / (item["id"] + ".json")
         if not path.is_file():
             die("missing approved acquisition observation: %s" % item["id"])
+        ensure_private_file(root, path, "acquisition observation for %s" % item["id"])
         observed = load_json(path)
         if not isinstance(observed, dict):
             die("acquisition observation must be an object for %s" % item["id"])
@@ -561,6 +592,7 @@ def load_observations(root: Path, policy: Dict[str, Any]) -> List[Dict[str, Any]
         artifact = root / "artifacts" / ("sha256-" + expected["sha256"])
         if not artifact.is_file():
             die("missing content-addressed artifact for %s" % item["id"])
+        ensure_private_file(root, artifact, "content-addressed artifact for %s" % item["id"])
         try:
             digest, length = sha256_file(artifact)
         except OSError as exc:
@@ -579,6 +611,7 @@ def load_optional_records(root: Path, directory: str) -> List[Dict[str, Any]]:
         die("%s must be a directory when present" % records_path)
     records = []
     for path in sorted(records_path.glob("*.json")):
+        ensure_private_file(root, path, "%s record" % directory)
         record = load_json(path)
         if not isinstance(record, dict):
             die("%s must contain JSON objects" % path)
@@ -646,6 +679,9 @@ def validate_schema_value(value: Any, schema: Any, root_schema: Dict[str, Any], 
         min_items = constraints.get("minItems")
         if min_items is not None and (type(min_items) is not int or len(value) < min_items):
             die("payload member %s does not satisfy schema minItems" % path)
+        max_items = constraints.get("maxItems")
+        if max_items is not None and (type(max_items) is not int or len(value) > max_items):
+            die("payload member %s does not satisfy schema maxItems" % path)
         item_schema = constraints.get("items")
         if item_schema is not None:
             for index, item in enumerate(value):
@@ -797,6 +833,8 @@ def verify(root: Path, evidence_address: str, schema: Path) -> None:
     schema_definition = load_json(schema)
     schema_bytes = schema.read_bytes()
     record = root / "records" / evidence_address.replace(":", "_")
+    ensure_private_file(root, record / "payload.json", "sealed payload")
+    ensure_private_file(root, record / "envelope.json", "sealed envelope")
     payload = load_json(record / "payload.json")
     envelope = load_json(record / "envelope.json")
     if not isinstance(payload, dict):
@@ -834,6 +872,7 @@ def verify(root: Path, evidence_address: str, schema: Path) -> None:
         artifact = root / "artifacts" / ("sha256-" + observation["content_digest"].removeprefix("sha256:"))
         if not artifact.is_file():
             die("missing content-addressed artifact for %s" % row["artifact_id"])
+        ensure_private_file(root, artifact, "content-addressed artifact for %s" % row["artifact_id"])
         try:
             digest, length = sha256_file(artifact)
         except OSError as exc:

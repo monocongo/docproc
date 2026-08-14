@@ -19,6 +19,14 @@ spec.loader.exec_module(phase0_lock)
 
 
 class Phase0LockTests(unittest.TestCase):
+    def write_private_json(self, path, value):
+        path.write_text(json.dumps(value), encoding="utf-8")
+        path.chmod(0o600)
+
+    def write_private_bytes(self, path, value):
+        path.write_bytes(value)
+        path.chmod(0o600)
+
     def policy(self):
         body = b"admitted byte\n"
         return {
@@ -120,8 +128,8 @@ class Phase0LockTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             artifact = root / "artifacts" / ("sha256-" + digest)
-            artifact.parent.mkdir()
-            artifact.write_bytes(body)
+            artifact.parent.mkdir(mode=0o700)
+            self.write_private_bytes(artifact, body)
             observation = {
                 "observation_version": "phase0-acquisition-observation-v1",
                 "artifact_id": "approved-byte",
@@ -138,28 +146,26 @@ class Phase0LockTests(unittest.TestCase):
                 "network_result": "admitted-request-completed",
             }
             observations = root / "observations"
-            observations.mkdir()
+            observations.mkdir(mode=0o700)
             observation_path = observations / "approved-byte.json"
-            observation_path.write_text("[]", encoding="utf-8")
+            self.write_private_json(observation_path, [])
             schema = Path(__file__).parents[1] / "schemas" / "phase0-lock-inventory-v1.json"
             with self.assertRaisesRegex(phase0_lock.LockError, "observation must be an object"):
                 phase0_lock.seal(policy, root, schema, "b" * 40)
-            observation_path.write_text(json.dumps(observation), encoding="utf-8")
+            self.write_private_json(observation_path, observation)
             exception_observation = copy.deepcopy(observation)
             exception_observation["artifact_id"] = "exception-byte"
             exception_observation["requested_url"] = "https://example.invalid/exception-byte"
             exception_observation["final_url"] = "https://example.invalid/exception-byte"
-            (observations / "exception-byte.json").write_text(
-                json.dumps(exception_observation), encoding="utf-8"
-            )
+            self.write_private_json(observations / "exception-byte.json", exception_observation)
             phase0_lock.record_prefetch_failure(root, "approved-byte")
             evidence_address = phase0_lock.seal(policy, root, schema, "b" * 40)
             self.assertTrue(evidence_address.startswith("evr1:sha256:"))
             phase0_lock.verify(root, evidence_address, schema)
-            artifact.write_bytes(b"tampered")
+            self.write_private_bytes(artifact, b"tampered")
             with self.assertRaisesRegex(phase0_lock.LockError, "does not match sealed inventory"):
                 phase0_lock.verify(root, evidence_address, schema)
-            artifact.write_bytes(body)
+            self.write_private_bytes(artifact, body)
             with self.assertRaisesRegex(phase0_lock.LockError, "invalid evidence address"):
                 phase0_lock.verify(root, "not-an-evidence-address", schema)
 
@@ -185,6 +191,12 @@ class Phase0LockTests(unittest.TestCase):
                 payload["reviewed_exceptions"],
                 [{"artifact_id": "exception-byte", "license": exception["license"]}],
             )
+            payload["inventory"][0]["observation"]["redirects"] = ["https://example.invalid/redirect"]
+            payload_path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(phase0_lock.LockError, "maxItems"):
+                phase0_lock.verify(root, evidence_address, schema)
+            payload_path.write_text(original_payload, encoding="utf-8")
+            payload = json.loads(original_payload)
             payload["inventory"][0]["artifact_descriptor"]["address"] = "art1:sha256:" + "0" * 64
             payload_path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(phase0_lock.LockError, "artifact descriptor address mismatch"):
@@ -192,6 +204,90 @@ class Phase0LockTests(unittest.TestCase):
             payload_path.write_text("{}", encoding="utf-8")
             with self.assertRaisesRegex(phase0_lock.LockError, "missing schema members"):
                 phase0_lock.verify(root, evidence_address, schema)
+
+    def test_seal_rejects_symlinked_private_evidence_artifact(self):
+        policy = phase0_lock.validate_policy(self.policy())
+        body = b"admitted byte\n"
+        digest = hashlib.sha256(body).hexdigest()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "private"
+            root.mkdir(mode=0o700)
+            outside = Path(temporary) / "outside-artifact"
+            self.write_private_bytes(outside, body)
+            artifact = root / "artifacts" / ("sha256-" + digest)
+            artifact.parent.mkdir(mode=0o700)
+            try:
+                artifact.symlink_to(outside)
+            except (OSError, NotImplementedError) as exc:
+                self.skipTest("symlinks unavailable: %s" % type(exc).__name__)
+            observations = root / "observations"
+            observations.mkdir(mode=0o700)
+            self.write_private_json(observations / "approved-byte.json", {
+                "observation_version": "phase0-acquisition-observation-v1",
+                "artifact_id": "approved-byte",
+                "requested_url": "https://example.invalid/admitted-byte",
+                "final_url": "https://example.invalid/admitted-byte",
+                "method": "GET",
+                "status": 200,
+                "content_digest": "sha256:" + digest,
+                "byte_length": len(body),
+                "content_type": "application/octet-stream",
+                "observed_started_at_utc": "2026-08-09T00:00:00Z",
+                "observed_completed_at_utc": "2026-08-09T00:00:01Z",
+                "redirects": [],
+                "network_result": "admitted-request-completed",
+            })
+            schema = Path(__file__).parents[1] / "schemas" / "phase0-lock-inventory-v1.json"
+            with self.assertRaisesRegex(phase0_lock.LockError, "regular private file"):
+                phase0_lock.seal(policy, root, schema, "b" * 40)
+
+    def test_verify_rejects_forged_redirect_observation(self):
+        policy = phase0_lock.validate_policy(self.policy())
+        body = b"admitted byte\n"
+        digest = hashlib.sha256(body).hexdigest()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifacts = root / "artifacts"
+            artifacts.mkdir(mode=0o700)
+            self.write_private_bytes(artifacts / ("sha256-" + digest), body)
+            observations = root / "observations"
+            observations.mkdir(mode=0o700)
+            self.write_private_json(observations / "approved-byte.json", {
+                "observation_version": "phase0-acquisition-observation-v1",
+                "artifact_id": "approved-byte",
+                "requested_url": "https://example.invalid/admitted-byte",
+                "final_url": "https://example.invalid/admitted-byte",
+                "method": "GET",
+                "status": 200,
+                "content_digest": "sha256:" + digest,
+                "byte_length": len(body),
+                "content_type": "application/octet-stream",
+                "observed_started_at_utc": "2026-08-09T00:00:00Z",
+                "observed_completed_at_utc": "2026-08-09T00:00:01Z",
+                "redirects": [],
+                "network_result": "admitted-request-completed",
+            })
+            schema = Path(__file__).parents[1] / "schemas" / "phase0-lock-inventory-v1.json"
+            evidence_address = phase0_lock.seal(policy, root, schema, "b" * 40)
+            record = root / "records" / evidence_address.replace(":", "_")
+            payload = json.loads((record / "payload.json").read_text(encoding="utf-8"))
+            envelope = json.loads((record / "envelope.json").read_text(encoding="utf-8"))
+            payload["inventory"][0]["observation"]["redirects"] = [{"status": 302}]
+            payload_address = "evp1:sha256:" + phase0_lock.sha256_bytes(
+                b"docproc:evidence-payload:v1\x00" + phase0_lock.jcs_bytes(payload)
+            )
+            envelope["payload_address"] = payload_address
+            unsigned = {key: value for key, value in envelope.items() if key != "evidence_address"}
+            forged_address = "evr1:sha256:" + phase0_lock.sha256_bytes(
+                b"docproc:evidence-envelope:v1\x00" + phase0_lock.jcs_bytes(unsigned)
+            )
+            envelope["evidence_address"] = forged_address
+            forged = root / "records" / forged_address.replace(":", "_")
+            forged.mkdir(mode=0o700)
+            self.write_private_json(forged / "payload.json", payload)
+            self.write_private_json(forged / "envelope.json", envelope)
+            with self.assertRaisesRegex(phase0_lock.LockError, "maxItems"):
+                phase0_lock.verify(root, forged_address, schema)
 
     def test_closure_requires_approved_required_records_for_each_required_component(self):
         catalog = self.policy()
