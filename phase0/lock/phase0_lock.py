@@ -494,6 +494,14 @@ def validate_closure(catalog: Dict[str, Any], exact_policy: Dict[str, Any]) -> N
         die("closure catalog must use phase0-base-primary-v1")
     if exact_policy["policy_version"] != "phase0-exact-byte-v1":
         die("closure input must use phase0-exact-byte-v1")
+    catalog_sources = {source["id"]: source["commit"] for source in catalog["source_decisions"]}
+    exact_sources = {source["id"]: source["commit"] for source in exact_policy["source_decisions"]}
+    changed_sources = {
+        source_id for source_id, commit in catalog_sources.items()
+        if exact_sources.get(source_id) != commit
+    }
+    if changed_sources:
+        die("exact-byte policy does not preserve catalog source decisions: %s" % ", ".join(sorted(changed_sources)))
     catalog_by_id = {item["id"]: item for item in policy_items(catalog)}
     covered = set()
     for item in policy_items(exact_policy):

@@ -115,6 +115,18 @@ class Phase0LockTests(unittest.TestCase):
                 phase0_lock.validate_policy(catalog), phase0_lock.validate_policy(exact)
             )
 
+    def test_closure_preserves_catalog_source_decisions(self):
+        catalog = self.policy()
+        catalog["policy_version"] = "phase0-base-primary-v1"
+        catalog["artifacts"][0].pop("component_id")
+        catalog["artifacts"][0]["id"] = "approved-component"
+        exact = self.policy()
+        exact["source_decisions"][0]["commit"] = "b" * 40
+        with self.assertRaisesRegex(phase0_lock.LockError, "preserve catalog source decisions"):
+            phase0_lock.validate_closure(
+                phase0_lock.validate_policy(catalog), phase0_lock.validate_policy(exact)
+            )
+
     def test_seal_and_verify_are_content_addressed(self):
         policy = self.policy()
         exception = copy.deepcopy(policy["artifacts"][0])
