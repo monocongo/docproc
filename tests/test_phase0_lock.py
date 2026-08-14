@@ -74,9 +74,12 @@ class Phase0LockTests(unittest.TestCase):
         policy["artifacts"][0]["admission_status"] = "pending-human-review"
         policy["artifacts"][0]["acquisition"] = {"url": None}
         policy["artifacts"][0]["license"]["review_status"] = "pending-human-review"
-        with tempfile.TemporaryDirectory() as temporary:
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            phase0_lock.urllib.request, "build_opener"
+        ) as build_opener:
             with self.assertRaisesRegex(phase0_lock.LockError, "until every required artifact is approved"):
                 phase0_lock.prefetch(phase0_lock.validate_policy(policy), Path(temporary))
+        build_opener.assert_not_called()
 
     def test_prefetch_refuses_denied_graph_without_request(self):
         policy = self.policy()
@@ -86,9 +89,12 @@ class Phase0LockTests(unittest.TestCase):
         denied["admission_status"] = "denied"
         denied["acquisition"] = {"url": None}
         policy["artifacts"].append(denied)
-        with tempfile.TemporaryDirectory() as temporary:
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            phase0_lock.urllib.request, "build_opener"
+        ) as build_opener:
             with self.assertRaisesRegex(phase0_lock.LockError, "denied artifacts in graph"):
                 phase0_lock.prefetch(phase0_lock.validate_policy(policy), Path(temporary))
+        build_opener.assert_not_called()
 
     def test_closure_rejects_an_unapproved_component(self):
         catalog = self.policy()
