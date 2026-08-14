@@ -8,7 +8,7 @@
 # rather than loading or modifying PF rules.
 set -eu
 
-if [ "$(uname -s)" != "Darwin" ]; then
+if [ "$(/usr/bin/uname -s)" != "Darwin" ]; then
   echo "network-deny-pf: macOS PF is required" >&2
   exit 2
 fi

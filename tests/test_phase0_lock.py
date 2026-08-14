@@ -408,14 +408,19 @@ class Phase0LockTests(unittest.TestCase):
             bin_dir = Path(temporary) / "bin"
             bin_dir.mkdir()
             uname = bin_dir / "uname"
-            uname.write_text("#!/bin/sh\necho Darwin\n", encoding="utf-8")
+            uname.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
             uname.chmod(0o755)
+            marker = Path(temporary) / "target-ran"
+            target = bin_dir / "target"
+            target.write_text("#!/bin/sh\n/usr/bin/touch \"$1\"\n", encoding="utf-8")
+            target.chmod(0o755)
             environment = {**os.environ, "PATH": str(bin_dir) + os.pathsep + os.environ["PATH"]}
             result = subprocess.run(
-                ["sh", str(wrapper), "--", "sh", "-c", "exit 0"], text=True, capture_output=True, env=environment
+                ["sh", str(wrapper), "--", str(target), str(marker)], text=True, capture_output=True, env=environment
             )
             self.assertEqual(result.returncode, 2)
-            self.assertIn("refusing run", result.stderr)
+            self.assertTrue("refusing run" in result.stderr or "macOS PF is required" in result.stderr)
+            self.assertFalse(marker.exists())
 
     def test_safe_root_uses_the_harness_checkout_and_private_permissions(self):
         inside_checkout = MODULE.parents[2] / "phase0" / "private-evidence"
