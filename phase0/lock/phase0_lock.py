@@ -479,12 +479,16 @@ def download_exact(item: Dict[str, Any], root: Path) -> Dict[str, Any]:
             die("Content-Encoding mismatch for %s" % item["id"])
         ensure_private_directory(root)
         file_descriptor, temporary_name = tempfile.mkstemp(prefix="prefetch-", dir=str(root))
-        os.close(file_descriptor)
         temporary = Path(temporary_name)
         try:
             digest = hashlib.sha256()
             length = 0
-            with temporary.open("wb") as destination:
+            try:
+                destination = os.fdopen(file_descriptor, "wb")
+            except OSError:
+                os.close(file_descriptor)
+                raise
+            with destination:
                 while True:
                     chunk = response.read(1024 * 1024)
                     if not chunk:

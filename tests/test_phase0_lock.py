@@ -122,6 +122,50 @@ class Phase0LockTests(unittest.TestCase):
         self.assertEqual(proxy_handler.proxies, {})
         self.assertIs(redirect_handler, phase0_lock.NoRedirect)
 
+    def test_exact_download_keeps_the_secure_temporary_descriptor(self):
+        item = self.policy()["artifacts"][0]
+        body = b"admitted byte\n"
+
+        class Response:
+            status = 200
+            headers = {
+                "Content-Length": str(len(body)),
+                "Content-Encoding": "identity",
+                "Content-Type": "application/octet-stream",
+            }
+
+            def __init__(self):
+                self.remaining = body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *unused):
+                return None
+
+            def geturl(self):
+                return item["acquisition"]["url"]
+
+            def read(self, unused_size):
+                chunk, self.remaining = self.remaining, b""
+                return chunk
+
+        opener = mock.Mock()
+        opener.open.return_value = Response()
+        original_open = Path.open
+
+        def reject_temporary_path_reopen(path, *args, **kwargs):
+            if path.name.startswith("prefetch-"):
+                raise AssertionError("secure temporary file reopened by path")
+            return original_open(path, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            phase0_lock.urllib.request, "build_opener", return_value=opener
+        ), mock.patch.object(Path, "open", new=reject_temporary_path_reopen):
+            observation = phase0_lock.download_exact(item, Path(temporary))
+
+        self.assertEqual(observation["content_digest"], "sha256:" + hashlib.sha256(body).hexdigest())
+
     def test_artifact_install_never_replaces_an_existing_address(self):
         first = b"first immutable body"
         conflicting = b"conflicting body"
