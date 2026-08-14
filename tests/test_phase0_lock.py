@@ -488,6 +488,19 @@ class Phase0LockTests(unittest.TestCase):
         self.assertEqual(record["monotonic_ns"], str(out_of_range_clock))
         phase0_lock.jcs_bytes(record)
 
+    def test_host_record_bounds_unreadable_tool_failures(self):
+        with mock.patch.object(phase0_lock.shutil, "which", return_value="/private/tool"), mock.patch.object(
+            phase0_lock, "sha256_file", side_effect=PermissionError("/private/tool")
+        ), mock.patch.object(
+            phase0_lock, "platform_command_observation", return_value={"status": "observed"}
+        ):
+            record = phase0_lock.host_record()
+        self.assertEqual(
+            record["executables"][0],
+            {"name": "uv", "status": "unavailable", "detail": "PermissionError"},
+        )
+        self.assertNotIn("/private/tool", json.dumps(record))
+
     def test_json_duplicate_members_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "duplicate.json"

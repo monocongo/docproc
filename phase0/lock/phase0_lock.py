@@ -1011,8 +1011,12 @@ def host_record() -> Dict[str, Any]:
     for name in executable_names:
         location = shutil.which(name)
         if location:
-            digest, length = sha256_file(Path(location))
-            executables.append({"name": name, "sha256": "sha256:" + digest, "byte_length": length})
+            try:
+                digest, length = sha256_file(Path(location))
+            except OSError as exc:
+                executables.append({"name": name, "status": "unavailable", "detail": type(exc).__name__})
+            else:
+                executables.append({"name": name, "sha256": "sha256:" + digest, "byte_length": length})
         else:
             executables.append({"name": name, "status": "not-present"})
     platform_records = {
