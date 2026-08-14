@@ -429,6 +429,13 @@ class Phase0LockTests(unittest.TestCase):
             self.assertEqual(((root / "nested").stat().st_mode & 0o777), 0o700)
             self.assertEqual(((root / "nested" / "record.json").stat().st_mode & 0o777), 0o600)
 
+    def test_repository_root_does_not_execute_ambient_git(self):
+        with mock.patch.object(
+            phase0_lock.subprocess, "run", side_effect=AssertionError("ambient process executed")
+        ) as run:
+            self.assertEqual(phase0_lock.repository_root(), MODULE.parents[2])
+        run.assert_not_called()
+
     def test_platform_command_output_is_redacted_and_bounded(self):
         completed = subprocess.CompletedProcess(
             args=["/usr/bin/sw_vers"], returncode=0, stdout="reading /private/token", stderr=""

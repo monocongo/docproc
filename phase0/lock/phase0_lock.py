@@ -379,15 +379,19 @@ def validate_policy(policy: Any) -> Dict[str, Any]:
 
 
 def repository_root() -> Path:
-    """Resolve the checkout that contains this harness, never the caller's CWD."""
-    result = subprocess.run(
-        ["git", "-C", str(SCRIPT_DIRECTORY), "rev-parse", "--show-toplevel"],
-        text=True,
-        capture_output=True,
-    )
-    if result.returncode:
-        die("phase0-lock must be stored in a Git worktree")
-    return Path(result.stdout.strip()).resolve()
+    """Resolve the checkout containing this harness without executing ambient Git."""
+    for candidate in (SCRIPT_DIRECTORY, *SCRIPT_DIRECTORY.parents):
+        marker = candidate / ".git"
+        try:
+            info = marker.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            die("cannot inspect harness Git boundary: %s" % type(exc).__name__)
+        if stat.S_ISLNK(info.st_mode) or not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):
+            die("harness Git boundary is not a regular directory or gitfile")
+        return candidate.resolve()
+    die("phase0-lock must be stored in a Git worktree")
 
 
 def safe_root(raw_root: str) -> Path:
