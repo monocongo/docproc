@@ -72,6 +72,14 @@ def load_json(path: Path) -> Any:
         die("cannot read JSON %s: %s" % (path, exc))
 
 
+def read_schema_bytes(path: Path) -> bytes:
+    """Read schema bytes while keeping local paths out of bounded failures."""
+    try:
+        return path.read_bytes()
+    except OSError as exc:
+        die("cannot read schema bytes: %s" % type(exc).__name__)
+
+
 def assert_json_domain(value: Any, path: str = "$") -> None:
     """Restrict records to the JCS subset this zero-dependency implementation emits.
 
@@ -757,7 +765,7 @@ def seal(policy: Dict[str, Any], root: Path, schema: Path, source_commit: str) -
         die("source commit must be a full lowercase SHA")
     ensure_private_directory(root)
     schema_definition = load_json(schema)
-    schema_bytes = schema.read_bytes()
+    schema_bytes = read_schema_bytes(schema)
     observations = load_observations(root, policy)
     inventory = []
     for observation in observations:
@@ -898,7 +906,7 @@ def verify(root: Path, evidence_address: str, schema: Path, policy: Dict[str, An
     if not ADDRESS_RE.fullmatch(evidence_address) or not evidence_address.startswith("evr1:"):
         die("invalid evidence address")
     schema_definition = load_json(schema)
-    schema_bytes = schema.read_bytes()
+    schema_bytes = read_schema_bytes(schema)
     record = root / "records" / evidence_address.replace(":", "_")
     ensure_private_file(root, record / "payload.json", "sealed payload")
     ensure_private_file(root, record / "envelope.json", "sealed envelope")

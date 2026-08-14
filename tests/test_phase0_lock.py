@@ -122,6 +122,12 @@ class Phase0LockTests(unittest.TestCase):
         self.assertEqual(proxy_handler.proxies, {})
         self.assertIs(redirect_handler, phase0_lock.NoRedirect)
 
+    def test_schema_byte_read_failures_are_bounded(self):
+        schema = Path(__file__).parents[1] / "schemas" / "phase0-lock-inventory-v1.json"
+        with mock.patch.object(Path, "read_bytes", side_effect=PermissionError("/private/schema")):
+            with self.assertRaisesRegex(phase0_lock.LockError, "cannot read schema bytes: PermissionError"):
+                phase0_lock.read_schema_bytes(schema)
+
     def test_closure_rejects_an_unapproved_component(self):
         catalog = self.policy()
         catalog["policy_version"] = "phase0-base-primary-v1"
