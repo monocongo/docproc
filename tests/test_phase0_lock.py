@@ -161,26 +161,26 @@ class Phase0LockTests(unittest.TestCase):
             phase0_lock.record_prefetch_failure(root, "approved-byte")
             evidence_address = phase0_lock.seal(policy, root, schema, "b" * 40)
             self.assertTrue(evidence_address.startswith("evr1:sha256:"))
-            phase0_lock.verify(root, evidence_address, schema)
+            phase0_lock.verify(root, evidence_address, schema, policy)
             self.write_private_bytes(artifact, b"tampered")
             with self.assertRaisesRegex(phase0_lock.LockError, "does not match sealed inventory"):
-                phase0_lock.verify(root, evidence_address, schema)
+                phase0_lock.verify(root, evidence_address, schema, policy)
             self.write_private_bytes(artifact, body)
             with self.assertRaisesRegex(phase0_lock.LockError, "invalid evidence address"):
-                phase0_lock.verify(root, "not-an-evidence-address", schema)
+                phase0_lock.verify(root, "not-an-evidence-address", schema, policy)
 
             record = root / "records" / evidence_address.replace(":", "_")
             envelope_path = record / "envelope.json"
             original_envelope = envelope_path.read_text(encoding="utf-8")
             envelope_path.write_text("[]", encoding="utf-8")
             with self.assertRaisesRegex(phase0_lock.LockError, "evidence envelope is invalid"):
-                phase0_lock.verify(root, evidence_address, schema)
+                phase0_lock.verify(root, evidence_address, schema, policy)
             envelope_path.write_text(original_envelope, encoding="utf-8")
             envelope = json.loads(original_envelope)
             envelope["input_ids"].append("tampered")
             envelope_path.write_text(json.dumps(envelope), encoding="utf-8")
             with self.assertRaisesRegex(phase0_lock.LockError, "does not bind"):
-                phase0_lock.verify(root, evidence_address, schema)
+                phase0_lock.verify(root, evidence_address, schema, policy)
             envelope_path.write_text(original_envelope, encoding="utf-8")
 
             payload_path = record / "payload.json"
@@ -191,19 +191,43 @@ class Phase0LockTests(unittest.TestCase):
                 payload["reviewed_exceptions"],
                 [{"artifact_id": "exception-byte", "license": exception["license"]}],
             )
+            forged_payload = copy.deepcopy(payload)
+            forged_payload["inventory"][0]["artifact_id"] = "forged-byte"
+            forged_payload["inventory"][0]["license"] = {
+                "evidence_class": "forged-license",
+                "review_status": "reviewed",
+            }
+            forged_envelope = json.loads(original_envelope)
+            forged_envelope["input_ids"][0] = "forged-byte"
+            forged_envelope["payload_address"] = "evp1:sha256:" + phase0_lock.sha256_bytes(
+                b"docproc:evidence-payload:v1\x00" + phase0_lock.jcs_bytes(forged_payload)
+            )
+            forged_unsigned = {
+                key: value for key, value in forged_envelope.items() if key != "evidence_address"
+            }
+            forged_address = "evr1:sha256:" + phase0_lock.sha256_bytes(
+                b"docproc:evidence-envelope:v1\x00" + phase0_lock.jcs_bytes(forged_unsigned)
+            )
+            forged_envelope["evidence_address"] = forged_address
+            forged_record = root / "records" / forged_address.replace(":", "_")
+            forged_record.mkdir(mode=0o700)
+            self.write_private_json(forged_record / "payload.json", forged_payload)
+            self.write_private_json(forged_record / "envelope.json", forged_envelope)
+            with self.assertRaisesRegex(phase0_lock.LockError, "inventory does not match the reviewed policy"):
+                phase0_lock.verify(root, forged_address, schema, policy)
             payload["inventory"][0]["observation"]["redirects"] = ["https://example.invalid/redirect"]
             payload_path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(phase0_lock.LockError, "maxItems"):
-                phase0_lock.verify(root, evidence_address, schema)
+                phase0_lock.verify(root, evidence_address, schema, policy)
             payload_path.write_text(original_payload, encoding="utf-8")
             payload = json.loads(original_payload)
             payload["inventory"][0]["artifact_descriptor"]["address"] = "art1:sha256:" + "0" * 64
             payload_path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(phase0_lock.LockError, "artifact descriptor address mismatch"):
-                phase0_lock.verify(root, evidence_address, schema)
+                phase0_lock.verify(root, evidence_address, schema, policy)
             payload_path.write_text("{}", encoding="utf-8")
             with self.assertRaisesRegex(phase0_lock.LockError, "missing schema members"):
-                phase0_lock.verify(root, evidence_address, schema)
+                phase0_lock.verify(root, evidence_address, schema, policy)
 
     def test_verify_rejects_forged_redirect_observation(self):
         policy = phase0_lock.validate_policy(self.policy())
@@ -251,7 +275,7 @@ class Phase0LockTests(unittest.TestCase):
             self.write_private_json(forged / "payload.json", payload)
             self.write_private_json(forged / "envelope.json", envelope)
             with self.assertRaisesRegex(phase0_lock.LockError, "maxItems"):
-                phase0_lock.verify(root, forged_address, schema)
+                phase0_lock.verify(root, forged_address, schema, policy)
 
     def test_seal_rejects_artifact_symlink_outside_private_root(self):
         policy = phase0_lock.validate_policy(self.policy())

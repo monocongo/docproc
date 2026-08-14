@@ -75,6 +75,8 @@ python3 phase0/lock/phase0_lock.py seal \
   --source-commit "$(git rev-parse HEAD)"
 python3 phase0/lock/phase0_lock.py verify \
   --root "$PRIVATE_ROOT" \
+  --catalog phase0/lock/base-primary-policy.json \
+  --policy "$PRIVATE_ROOT/reviewed-exact-byte-policy.json" \
   --schema schemas/phase0-lock-inventory-v1.json \
   --evidence-address 'evr1:sha256:...'
 ```

@@ -827,7 +827,35 @@ def validate_phase0_envelope(envelope: Any, payload: Dict[str, Any], expected_bi
         die("evidence envelope does not bind the sealed artifact descriptors")
 
 
-def verify(root: Path, evidence_address: str, schema: Path) -> None:
+def validate_payload_policy_binding(payload: Dict[str, Any], policy: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """Bind policy-owned evidence metadata to the reviewed exact-byte policy."""
+    policy = validate_policy(policy)
+    if policy["policy_version"] != "phase0-exact-byte-v1":
+        die("verification requires a reviewed phase0-exact-byte-v1 policy")
+    if payload["policy_digest"] != "sha256:" + sha256_bytes(jcs_bytes(policy)):
+        die("payload policy digest does not match the reviewed policy")
+    expected_sources = sorted(policy["source_decisions"], key=lambda source: source["id"])
+    if payload["source_decisions"] != expected_sources:
+        die("payload source decisions do not match the reviewed policy")
+    expected_exceptions = sorted(
+        ({"artifact_id": item["id"], "license": item["license"]}
+         for item in policy_items(policy)
+         if item["license"]["review_status"] == "reviewed-exception"),
+        key=lambda row: row["artifact_id"],
+    )
+    if payload["reviewed_exceptions"] != expected_exceptions:
+        die("payload reviewed exceptions do not match the reviewed policy")
+    expected_items = {
+        item["id"]: item
+        for item in policy_items(policy)
+        if item["admission_status"] == "approved-for-acquisition"
+    }
+    if [row["artifact_id"] for row in payload["inventory"]] != sorted(expected_items):
+        die("payload inventory does not match the reviewed policy")
+    return expected_items
+
+
+def verify(root: Path, evidence_address: str, schema: Path, policy: Dict[str, Any]) -> None:
     if not ADDRESS_RE.fullmatch(evidence_address) or not evidence_address.startswith("evr1:"):
         die("invalid evidence address")
     schema_definition = load_json(schema)
@@ -844,6 +872,7 @@ def verify(root: Path, evidence_address: str, schema: Path) -> None:
     validate_lock_inventory_payload(payload, schema_definition)
     if payload["payload_schema_digest"] != "sha256:" + sha256_bytes(schema_bytes):
         die("payload schema digest mismatch")
+    expected_items = validate_payload_policy_binding(payload, policy)
     expected_bindings = []
     inventory = payload["inventory"]
     artifact_ids = [row["artifact_id"] for row in inventory]
@@ -851,11 +880,26 @@ def verify(root: Path, evidence_address: str, schema: Path) -> None:
         die("payload inventory is not sorted by unique artifact id")
     for row in inventory:
         observation = row["observation"]
+        item = expected_items[row["artifact_id"]]
+        if (
+            observation["artifact_id"] != row["artifact_id"]
+            or row["origin"] != item["origin"]
+            or row["license"] != item["license"]
+            or row["distribution_mode"] != item["distribution_mode"]
+            or row["publication_disposition"] != item["publication_disposition"]
+            or observation["requested_url"] != item["acquisition"]["url"]
+            or observation["final_url"] != item["acquisition"]["url"]
+            or observation["content_digest"] != "sha256:" + item["acquisition"]["expected"]["sha256"]
+            or observation["byte_length"] != item["acquisition"]["expected"]["byte_length"]
+        ):
+            die("payload inventory metadata does not match the reviewed policy")
         descriptor_record = row["artifact_descriptor"]
         descriptor = descriptor_record["descriptor"]
         metadata = {key: value for key, value in descriptor.items() if key not in {
             "descriptor_version", "content_digest", "byte_length"
         }}
+        if metadata != item["acquisition"]["descriptor"]:
+            die("artifact descriptor metadata does not match the reviewed policy")
         if (
             descriptor["descriptor_version"] != "docproc-artifact-descriptor-v1"
             or descriptor["content_digest"] != observation["content_digest"]
@@ -971,6 +1015,8 @@ def main(argv: List[str]) -> int:
     seal_cmd.add_argument("--source-commit", required=True)
     verify_cmd = sub.add_parser("verify")
     verify_cmd.add_argument("--root", required=True)
+    verify_cmd.add_argument("--catalog", type=Path, required=True)
+    verify_cmd.add_argument("--policy", type=Path, required=True)
     verify_cmd.add_argument("--schema", type=Path, required=True)
     verify_cmd.add_argument("--evidence-address", required=True)
     host_cmd = sub.add_parser("capture-host-baseline")
@@ -981,7 +1027,10 @@ def main(argv: List[str]) -> int:
             root = safe_root(args.root)
             write_json_once(root, root / "host-baseline.json", host_record())
         elif args.command == "verify":
-            verify(safe_root(args.root), args.evidence_address, args.schema)
+            catalog = validate_policy(load_json(args.catalog))
+            policy = validate_policy(load_json(args.policy))
+            validate_closure(catalog, policy)
+            verify(safe_root(args.root), args.evidence_address, args.schema, policy)
         else:
             policy = validate_policy(load_json(args.policy))
             if args.command == "validate-policy":
