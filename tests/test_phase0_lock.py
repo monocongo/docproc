@@ -77,6 +77,12 @@ class Phase0LockTests(unittest.TestCase):
         with self.assertRaisesRegex(phase0_lock.LockError, "expected SHA-256"):
             phase0_lock.validate_policy(policy)
 
+    def test_policy_rejects_ignored_top_level_members(self):
+        policy = self.policy()
+        policy["ignored_graph"] = {"artifact": "not enforced"}
+        with self.assertRaisesRegex(phase0_lock.LockError, "unexpected members: ignored_graph"):
+            phase0_lock.validate_policy(policy)
+
     def test_prefetch_refuses_pending_graph_without_request(self):
         policy = self.policy()
         policy["artifacts"][0]["admission_status"] = "pending-human-review"

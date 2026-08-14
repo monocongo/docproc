@@ -285,6 +285,9 @@ def validate_policy(policy: Any) -> Dict[str, Any]:
     missing = required - set(policy)
     if missing:
         die("policy is missing: %s" % ", ".join(sorted(missing)))
+    unexpected = set(policy) - required
+    if unexpected:
+        die("policy has unexpected members: %s" % ", ".join(sorted(unexpected)))
     if policy["policy_version"] not in {"phase0-base-primary-v1", "phase0-exact-byte-v1"}:
         die("unsupported policy_version")
     if policy["scope"] != "base-and-primary-candidate-admission":
