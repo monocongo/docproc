@@ -122,6 +122,27 @@ class Phase0LockTests(unittest.TestCase):
         self.assertEqual(proxy_handler.proxies, {})
         self.assertIs(redirect_handler, phase0_lock.NoRedirect)
 
+    def test_artifact_install_never_replaces_an_existing_address(self):
+        first = b"first immutable body"
+        conflicting = b"conflicting body"
+        observed = hashlib.sha256(conflicting).hexdigest()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifacts = root / "artifacts"
+            artifacts.mkdir(mode=0o700)
+            artifact_path = artifacts / ("sha256-" + observed)
+            self.write_private_bytes(artifact_path, first)
+            candidate = root / "candidate"
+            self.write_private_bytes(candidate, conflicting)
+
+            with self.assertRaisesRegex(phase0_lock.LockError, "content-addressed artifact collision"):
+                phase0_lock.install_artifact_once(
+                    root, candidate, artifact_path, "approved-byte", observed, len(conflicting)
+                )
+
+            self.assertEqual(artifact_path.read_bytes(), first)
+            self.assertEqual(candidate.read_bytes(), conflicting)
+
     def test_schema_byte_read_failures_are_bounded(self):
         schema = Path(__file__).parents[1] / "schemas" / "phase0-lock-inventory-v1.json"
         with mock.patch.object(Path, "read_bytes", side_effect=PermissionError("/private/schema")):

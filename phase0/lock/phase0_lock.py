@@ -428,6 +428,26 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def install_artifact_once(
+    root: Path, temporary: Path, artifact_path: Path, item_id: str, observed: str, length: int
+) -> None:
+    """Atomically install an immutable artifact without replacing an existing path."""
+    ensure_private_tree(root, artifact_path.parent)
+    try:
+        os.link(temporary, artifact_path)
+    except FileExistsError:
+        ensure_private_file(root, artifact_path, "content-addressed artifact for %s" % item_id)
+        try:
+            existing_digest, existing_length = sha256_file(artifact_path)
+        except OSError as exc:
+            die("cannot read existing content-addressed artifact for %s: %s" % (item_id, type(exc).__name__))
+        if existing_digest != observed or existing_length != length:
+            die("content-addressed artifact collision for %s at sha256-%s" % (item_id, observed))
+    else:
+        ensure_private_file(root, artifact_path, "content-addressed artifact for %s" % item_id)
+    temporary.unlink()
+
+
 def download_exact(item: Dict[str, Any], root: Path) -> Dict[str, Any]:
     """Download one already-admitted URL, forbidding redirect and byte surprises."""
     acquisition = item["acquisition"]
@@ -478,18 +498,7 @@ def download_exact(item: Dict[str, Any], root: Path) -> Dict[str, Any]:
             if observed != expected["sha256"] or length != expected["byte_length"]:
                 die("byte identity mismatch for %s (got %s / %d)" % (item["id"], observed, length))
             artifact_path = root / "artifacts" / ("sha256-%s" % observed)
-            ensure_private_tree(root, artifact_path.parent)
-            if artifact_path.exists():
-                ensure_private_file(root, artifact_path, "content-addressed artifact for %s" % item["id"])
-                try:
-                    existing_digest, existing_length = sha256_file(artifact_path)
-                except OSError as exc:
-                    die("cannot read existing content-addressed artifact for %s: %s" % (item["id"], type(exc).__name__))
-                if existing_digest != observed or existing_length != length:
-                    die("content-addressed artifact collision for %s at sha256-%s" % (item["id"], observed))
-                temporary.unlink()
-            else:
-                os.replace(str(temporary), str(artifact_path))
+            install_artifact_once(root, temporary, artifact_path, item["id"], observed, length)
         finally:
             if temporary.exists():
                 temporary.unlink()
