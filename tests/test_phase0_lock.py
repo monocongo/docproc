@@ -108,7 +108,13 @@ class Phase0LockTests(unittest.TestCase):
             )
 
     def test_seal_and_verify_are_content_addressed(self):
-        policy = phase0_lock.validate_policy(self.policy())
+        policy = self.policy()
+        exception = copy.deepcopy(policy["artifacts"][0])
+        exception["id"] = "exception-byte"
+        exception["acquisition"]["url"] = "https://example.invalid/exception-byte"
+        exception["license"]["review_status"] = "reviewed-exception"
+        policy["artifacts"].append(exception)
+        policy = phase0_lock.validate_policy(policy)
         body = b"admitted byte\n"
         digest = hashlib.sha256(body).hexdigest()
         with tempfile.TemporaryDirectory() as temporary:
@@ -139,6 +145,13 @@ class Phase0LockTests(unittest.TestCase):
             with self.assertRaisesRegex(phase0_lock.LockError, "observation must be an object"):
                 phase0_lock.seal(policy, root, schema, "b" * 40)
             observation_path.write_text(json.dumps(observation), encoding="utf-8")
+            exception_observation = copy.deepcopy(observation)
+            exception_observation["artifact_id"] = "exception-byte"
+            exception_observation["requested_url"] = "https://example.invalid/exception-byte"
+            exception_observation["final_url"] = "https://example.invalid/exception-byte"
+            (observations / "exception-byte.json").write_text(
+                json.dumps(exception_observation), encoding="utf-8"
+            )
             phase0_lock.record_prefetch_failure(root, "approved-byte")
             evidence_address = phase0_lock.seal(policy, root, schema, "b" * 40)
             self.assertTrue(evidence_address.startswith("evr1:sha256:"))
@@ -168,6 +181,10 @@ class Phase0LockTests(unittest.TestCase):
             original_payload = payload_path.read_text(encoding="utf-8")
             payload = json.loads(original_payload)
             self.assertEqual(payload["failures"][0]["message"], "admitted request did not complete byte verification")
+            self.assertEqual(
+                payload["reviewed_exceptions"],
+                [{"artifact_id": "exception-byte", "license": exception["license"]}],
+            )
             payload["inventory"][0]["artifact_descriptor"]["address"] = "art1:sha256:" + "0" * 64
             payload_path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(phase0_lock.LockError, "artifact descriptor address mismatch"):
