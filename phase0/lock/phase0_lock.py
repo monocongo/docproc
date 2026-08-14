@@ -429,7 +429,8 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def install_artifact_once(
-    root: Path, temporary: Path, artifact_path: Path, item_id: str, observed: str, length: int
+    root: Path, temporary: Path, source_descriptor: int, artifact_path: Path,
+    item_id: str, observed: str, length: int
 ) -> None:
     """Atomically install an immutable artifact without replacing an existing path."""
     ensure_private_tree(root, artifact_path.parent)
@@ -445,6 +446,10 @@ def install_artifact_once(
             die("content-addressed artifact collision for %s at sha256-%s" % (item_id, observed))
     else:
         ensure_private_file(root, artifact_path, "content-addressed artifact for %s" % item_id)
+        source_info = os.fstat(source_descriptor)
+        installed_info = artifact_path.lstat()
+        if (installed_info.st_dev, installed_info.st_ino) != (source_info.st_dev, source_info.st_ino):
+            die("secure temporary artifact changed before installation for %s" % item_id)
     temporary.unlink()
 
 
@@ -498,11 +503,15 @@ def download_exact(item: Dict[str, Any], root: Path) -> Dict[str, Any]:
                         die("response exceeds approved byte_length for %s" % item["id"])
                     destination.write(chunk)
                     digest.update(chunk)
-            observed = digest.hexdigest()
-            if observed != expected["sha256"] or length != expected["byte_length"]:
-                die("byte identity mismatch for %s (got %s / %d)" % (item["id"], observed, length))
-            artifact_path = root / "artifacts" / ("sha256-%s" % observed)
-            install_artifact_once(root, temporary, artifact_path, item["id"], observed, length)
+                destination.flush()
+                os.fsync(destination.fileno())
+                observed = digest.hexdigest()
+                if observed != expected["sha256"] or length != expected["byte_length"]:
+                    die("byte identity mismatch for %s (got %s / %d)" % (item["id"], observed, length))
+                artifact_path = root / "artifacts" / ("sha256-%s" % observed)
+                install_artifact_once(
+                    root, temporary, destination.fileno(), artifact_path, item["id"], observed, length
+                )
         finally:
             if temporary.exists():
                 temporary.unlink()

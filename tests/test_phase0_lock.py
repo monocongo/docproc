@@ -179,13 +179,42 @@ class Phase0LockTests(unittest.TestCase):
             candidate = root / "candidate"
             self.write_private_bytes(candidate, conflicting)
 
-            with self.assertRaisesRegex(phase0_lock.LockError, "content-addressed artifact collision"):
-                phase0_lock.install_artifact_once(
-                    root, candidate, artifact_path, "approved-byte", observed, len(conflicting)
-                )
+            with candidate.open("rb") as source:
+                with self.assertRaisesRegex(phase0_lock.LockError, "content-addressed artifact collision"):
+                    phase0_lock.install_artifact_once(
+                        root, candidate, source.fileno(), artifact_path,
+                        "approved-byte", observed, len(conflicting)
+                    )
 
             self.assertEqual(artifact_path.read_bytes(), first)
             self.assertEqual(candidate.read_bytes(), conflicting)
+
+    def test_artifact_install_rejects_a_swapped_temporary_path(self):
+        body = b"verified body"
+        replacement = b"replacement body"
+        observed = hashlib.sha256(body).hexdigest()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifacts = root / "artifacts"
+            artifacts.mkdir(mode=0o700)
+            artifact_path = artifacts / ("sha256-" + observed)
+            candidate = root / "candidate"
+            self.write_private_bytes(candidate, body)
+            original_link = os.link
+
+            def swap_before_link(source, target):
+                source.unlink()
+                self.write_private_bytes(source, replacement)
+                original_link(source, target)
+
+            with candidate.open("rb") as source, mock.patch.object(
+                phase0_lock.os, "link", side_effect=swap_before_link
+            ):
+                with self.assertRaisesRegex(phase0_lock.LockError, "temporary artifact changed"):
+                    phase0_lock.install_artifact_once(
+                        root, candidate, source.fileno(), artifact_path,
+                        "approved-byte", observed, len(body)
+                    )
 
     def test_schema_byte_read_failures_are_bounded(self):
         schema = Path(__file__).parents[1] / "schemas" / "phase0-lock-inventory-v1.json"
