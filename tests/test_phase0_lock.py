@@ -493,6 +493,26 @@ class Phase0LockTests(unittest.TestCase):
         with self.assertRaisesRegex(phase0_lock.LockError, "floating-point"):
             phase0_lock.jcs_bytes({"value": 0.5})
 
+    def test_schema_charset_condition_is_enforced_and_authoring_errors_propagate(self):
+        schema_path = Path(__file__).parents[1] / "schemas" / "phase0-lock-inventory-v1.json"
+        schema = phase0_lock.load_json(schema_path)
+        descriptor = {
+            "descriptor_version": "docproc-artifact-descriptor-v1",
+            "content_digest": "sha256:" + "a" * 64,
+            "byte_length": 1,
+            "media_type": "text/plain",
+            "content_encoding": "identity",
+        }
+        with self.assertRaisesRegex(phase0_lock.LockError, "missing schema members: charset"):
+            phase0_lock.validate_schema_value(descriptor, schema["$defs"]["descriptor"], schema, "$")
+
+        malformed_condition = {
+            "if": {"$ref": "#/$defs/missing"},
+            "then": {"const": "unreachable"},
+        }
+        with self.assertRaisesRegex(phase0_lock.LockError, "unknown definition"):
+            phase0_lock.validate_schema_value("value", malformed_condition, {"$defs": {}}, "$")
+
     def test_evidence_root_inside_worktree_is_rejected(self):
         inside = str(Path(__file__).parents[1] / "phase0" / "private-evidence")
         with self.assertRaisesRegex(phase0_lock.LockError, "outside the Git worktree"):

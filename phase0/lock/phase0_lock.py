@@ -44,8 +44,16 @@ class LockError(RuntimeError):
     """An invalid policy, observation, or evidence record."""
 
 
+class SchemaValueMismatch(LockError):
+    """A candidate value did not satisfy a valid schema constraint."""
+
+
 def die(message: str) -> NoReturn:
     raise LockError(message)
+
+
+def schema_mismatch(message: str) -> NoReturn:
+    raise SchemaValueMismatch(message)
 
 
 def no_duplicate_object(pairs: List[Tuple[str, Any]]) -> Dict[str, Any]:
@@ -657,7 +665,7 @@ def validate_schema_value(value: Any, schema: Any, root_schema: Dict[str, Any], 
     if condition is not None:
         try:
             validate_schema_value(value, condition, root_schema, path)
-        except LockError:
+        except SchemaValueMismatch:
             pass
         else:
             then_schema = constraints.get("then")
@@ -673,27 +681,43 @@ def validate_schema_value(value: Any, schema: Any, root_schema: Dict[str, Any], 
     }
     if expected_type is not None:
         checker = expected_types.get(expected_type)
-        if checker is None or not checker(value):
-            die("payload member %s does not satisfy schema type" % path)
+        if checker is None:
+            die("lock-inventory schema has an unsupported type")
+        if not checker(value):
+            schema_mismatch("payload member %s does not satisfy schema type" % path)
     if "const" in constraints and value != constraints["const"]:
-        die("payload member %s does not satisfy schema const" % path)
+        schema_mismatch("payload member %s does not satisfy schema const" % path)
     pattern = constraints.get("pattern")
     if pattern is not None:
-        if not isinstance(pattern, str) or not isinstance(value, str) or re.fullmatch(pattern, value) is None:
-            die("payload member %s does not satisfy schema pattern" % path)
+        if not isinstance(pattern, str):
+            die("lock-inventory schema has an invalid pattern")
+        if not isinstance(value, str) or re.fullmatch(pattern, value) is None:
+            schema_mismatch("payload member %s does not satisfy schema pattern" % path)
     min_length = constraints.get("minLength")
-    if min_length is not None and (type(min_length) is not int or not isinstance(value, str) or len(value) < min_length):
-        die("payload member %s does not satisfy schema minLength" % path)
+    if min_length is not None:
+        if type(min_length) is not int:
+            die("lock-inventory schema has an invalid minLength")
+        if not isinstance(value, str) or len(value) < min_length:
+            schema_mismatch("payload member %s does not satisfy schema minLength" % path)
     minimum = constraints.get("minimum")
-    if minimum is not None and (type(minimum) is not int or type(value) is not int or value < minimum):
-        die("payload member %s does not satisfy schema minimum" % path)
+    if minimum is not None:
+        if type(minimum) is not int:
+            die("lock-inventory schema has an invalid minimum")
+        if type(value) is not int or value < minimum:
+            schema_mismatch("payload member %s does not satisfy schema minimum" % path)
     if isinstance(value, list):
         min_items = constraints.get("minItems")
-        if min_items is not None and (type(min_items) is not int or len(value) < min_items):
-            die("payload member %s does not satisfy schema minItems" % path)
+        if min_items is not None:
+            if type(min_items) is not int:
+                die("lock-inventory schema has an invalid minItems")
+            if len(value) < min_items:
+                schema_mismatch("payload member %s does not satisfy schema minItems" % path)
         max_items = constraints.get("maxItems")
-        if max_items is not None and (type(max_items) is not int or len(value) > max_items):
-            die("payload member %s does not satisfy schema maxItems" % path)
+        if max_items is not None:
+            if type(max_items) is not int:
+                die("lock-inventory schema has an invalid maxItems")
+            if len(value) > max_items:
+                schema_mismatch("payload member %s does not satisfy schema maxItems" % path)
         item_schema = constraints.get("items")
         if item_schema is not None:
             for index, item in enumerate(value):
@@ -706,9 +730,9 @@ def validate_schema_value(value: Any, schema: Any, root_schema: Dict[str, Any], 
         missing = set(required) - set(value)
         unexpected = set(value) - set(properties)
         if missing:
-            die("payload member %s is missing schema members: %s" % (path, ", ".join(sorted(missing))))
+            schema_mismatch("payload member %s is missing schema members: %s" % (path, ", ".join(sorted(missing))))
         if constraints.get("additionalProperties") is False and unexpected:
-            die("payload member %s has unexpected schema members: %s" % (path, ", ".join(sorted(unexpected))))
+            schema_mismatch("payload member %s has unexpected schema members: %s" % (path, ", ".join(sorted(unexpected))))
         for name, member in value.items():
             if name in properties:
                 validate_schema_value(member, properties[name], root_schema, "%s.%s" % (path, name))

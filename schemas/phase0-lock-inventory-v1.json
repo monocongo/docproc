@@ -125,7 +125,7 @@
           "if": {
             "required": ["media_type"],
             "properties": {
-              "media_type": {"type": "string", "pattern": "^(text/|application/(json|xml|javascript|sql|graphql)$|application/.+\\+(json|xml)$)"}
+              "media_type": {"type": "string", "pattern": "^(text/.+|application/(json|xml|javascript|sql|graphql)|application/.+\\+(json|xml))$"}
             }
           },
           "then": {"required": ["charset"]}
