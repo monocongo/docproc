@@ -222,6 +222,46 @@ class Phase0LockTests(unittest.TestCase):
             with self.assertRaisesRegex(phase0_lock.LockError, "cannot read schema bytes: PermissionError"):
                 phase0_lock.read_schema_bytes(schema)
 
+    def test_optional_records_are_bound_to_the_reviewed_policy(self):
+        policy = phase0_lock.validate_policy(self.policy())
+        unknown = {"artifact_id": "outside-policy"}
+        with self.assertRaisesRegex(phase0_lock.LockError, "not bound to an artifact"):
+            phase0_lock.validate_optional_policy_records([unknown], "failures", policy)
+        with self.assertRaisesRegex(phase0_lock.LockError, "conflicts with an approved acquisition"):
+            phase0_lock.validate_optional_policy_records(
+                [{"artifact_id": "approved-byte"}], "exclusions", policy
+            )
+
+        pending = copy.deepcopy(policy["artifacts"][0])
+        pending["id"] = "pending-byte"
+        pending["required"] = False
+        pending["admission_status"] = "pending-human-review"
+        pending["acquisition"] = {"url": None}
+        pending["license"]["review_status"] = "pending-human-review"
+        policy["artifacts"].append(pending)
+        with self.assertRaisesRegex(phase0_lock.LockError, "not bound to an approved acquisition"):
+            phase0_lock.validate_optional_policy_records(
+                [{"artifact_id": "pending-byte"}], "failures", policy
+            )
+
+    def test_failure_records_require_content_addressed_filenames(self):
+        failure = {
+            "failure_version": "phase0-acquisition-failure-v1",
+            "artifact_id": "approved-byte",
+            "occurred_at_utc": "2026-08-14T00:00:00Z",
+            "stage": "prefetch",
+            "message": "admitted request did not complete byte verification",
+            "content_classification": "metadata-only",
+            "publication_disposition": "private-only",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            failures = root / "failures"
+            failures.mkdir(mode=0o700)
+            self.write_private_json(failures / "manual.json", failure)
+            with self.assertRaisesRegex(phase0_lock.LockError, "content-addressed filename"):
+                phase0_lock.load_optional_records(root, "failures")
+
     def test_closure_rejects_an_unapproved_component(self):
         catalog = self.policy()
         catalog["policy_version"] = "phase0-base-primary-v1"

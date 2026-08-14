@@ -668,8 +668,28 @@ def load_optional_records(root: Path, directory: str) -> List[Dict[str, Any]]:
         record = load_json(path)
         if not isinstance(record, dict):
             die("%s must contain JSON objects" % path)
+        if directory == "failures":
+            expected_name = "sha256-" + sha256_bytes(jcs_bytes(record)) + ".json"
+            if path.name != expected_name:
+                die("failure record does not have its content-addressed filename")
         records.append(record)
     return records
+
+
+def validate_optional_policy_records(
+    records: List[Dict[str, Any]], directory: str, policy: Dict[str, Any]
+) -> None:
+    """Bind failure and exclusion records to the reviewed policy graph."""
+    items = {item["id"]: item for item in policy_items(policy)}
+    for record in records:
+        artifact_id = record.get("artifact_id")
+        if not isinstance(artifact_id, str) or artifact_id not in items:
+            die("%s record is not bound to an artifact in the reviewed policy" % directory)
+        approved = items[artifact_id]["admission_status"] == "approved-for-acquisition"
+        if directory == "failures" and not approved:
+            die("failure record is not bound to an approved acquisition")
+        if directory == "exclusions" and approved:
+            die("exclusion record conflicts with an approved acquisition")
 
 
 def resolve_schema(schema: Any, root_schema: Dict[str, Any]) -> Dict[str, Any]:
@@ -812,6 +832,10 @@ def seal(policy: Dict[str, Any], root: Path, schema: Path, source_commit: str) -
          if item["license"]["review_status"] == "reviewed-exception"),
         key=lambda row: row["artifact_id"],
     )
+    failures = load_optional_records(root, "failures")
+    exclusions = load_optional_records(root, "exclusions")
+    validate_optional_policy_records(failures, "failures", policy)
+    validate_optional_policy_records(exclusions, "exclusions", policy)
     payload = {
         "payload_version": "docproc-evidence-payload-v1",
         "payload_schema_digest": "sha256:" + sha256_bytes(schema_bytes),
@@ -821,8 +845,8 @@ def seal(policy: Dict[str, Any], root: Path, schema: Path, source_commit: str) -
         "policy_digest": "sha256:" + sha256_bytes(jcs_bytes(policy)),
         "source_decisions": source_decisions,
         "inventory": inventory,
-        "failures": load_optional_records(root, "failures"),
-        "exclusions": load_optional_records(root, "exclusions"),
+        "failures": failures,
+        "exclusions": exclusions,
         "reviewed_exceptions": exceptions,
         "content_classification": "metadata-only",
         "publication_disposition": "private-only",
@@ -914,6 +938,8 @@ def validate_payload_policy_binding(payload: Dict[str, Any], policy: Dict[str, A
     )
     if payload["reviewed_exceptions"] != expected_exceptions:
         die("payload reviewed exceptions do not match the reviewed policy")
+    validate_optional_policy_records(payload["failures"], "failures", policy)
+    validate_optional_policy_records(payload["exclusions"], "exclusions", policy)
     expected_items = {
         item["id"]: item
         for item in policy_items(policy)
