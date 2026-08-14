@@ -205,42 +205,6 @@ class Phase0LockTests(unittest.TestCase):
             with self.assertRaisesRegex(phase0_lock.LockError, "missing schema members"):
                 phase0_lock.verify(root, evidence_address, schema)
 
-    def test_seal_rejects_symlinked_private_evidence_artifact(self):
-        policy = phase0_lock.validate_policy(self.policy())
-        body = b"admitted byte\n"
-        digest = hashlib.sha256(body).hexdigest()
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "private"
-            root.mkdir(mode=0o700)
-            outside = Path(temporary) / "outside-artifact"
-            self.write_private_bytes(outside, body)
-            artifact = root / "artifacts" / ("sha256-" + digest)
-            artifact.parent.mkdir(mode=0o700)
-            try:
-                artifact.symlink_to(outside)
-            except (OSError, NotImplementedError) as exc:
-                self.skipTest("symlinks unavailable: %s" % type(exc).__name__)
-            observations = root / "observations"
-            observations.mkdir(mode=0o700)
-            self.write_private_json(observations / "approved-byte.json", {
-                "observation_version": "phase0-acquisition-observation-v1",
-                "artifact_id": "approved-byte",
-                "requested_url": "https://example.invalid/admitted-byte",
-                "final_url": "https://example.invalid/admitted-byte",
-                "method": "GET",
-                "status": 200,
-                "content_digest": "sha256:" + digest,
-                "byte_length": len(body),
-                "content_type": "application/octet-stream",
-                "observed_started_at_utc": "2026-08-09T00:00:00Z",
-                "observed_completed_at_utc": "2026-08-09T00:00:01Z",
-                "redirects": [],
-                "network_result": "admitted-request-completed",
-            })
-            schema = Path(__file__).parents[1] / "schemas" / "phase0-lock-inventory-v1.json"
-            with self.assertRaisesRegex(phase0_lock.LockError, "regular private file"):
-                phase0_lock.seal(policy, root, schema, "b" * 40)
-
     def test_verify_rejects_forged_redirect_observation(self):
         policy = phase0_lock.validate_policy(self.policy())
         body = b"admitted byte\n"
@@ -288,6 +252,41 @@ class Phase0LockTests(unittest.TestCase):
             self.write_private_json(forged / "envelope.json", envelope)
             with self.assertRaisesRegex(phase0_lock.LockError, "maxItems"):
                 phase0_lock.verify(root, forged_address, schema)
+
+    def test_seal_rejects_artifact_symlink_outside_private_root(self):
+        policy = phase0_lock.validate_policy(self.policy())
+        body = b"admitted byte\n"
+        digest = hashlib.sha256(body).hexdigest()
+        with tempfile.TemporaryDirectory() as temporary, tempfile.TemporaryDirectory() as external:
+            root = Path(temporary)
+            artifacts = root / "artifacts"
+            artifacts.mkdir(mode=0o700)
+            outside = Path(external) / "artifact"
+            self.write_private_bytes(outside, body)
+            try:
+                (artifacts / ("sha256-" + digest)).symlink_to(outside)
+            except (OSError, NotImplementedError) as exc:
+                self.skipTest("symlinks unavailable: %s" % type(exc).__name__)
+            observations = root / "observations"
+            observations.mkdir(mode=0o700)
+            self.write_private_json(observations / "approved-byte.json", {
+                "observation_version": "phase0-acquisition-observation-v1",
+                "artifact_id": "approved-byte",
+                "requested_url": "https://example.invalid/admitted-byte",
+                "final_url": "https://example.invalid/admitted-byte",
+                "method": "GET",
+                "status": 200,
+                "content_digest": "sha256:" + digest,
+                "byte_length": len(body),
+                "content_type": "application/octet-stream",
+                "observed_started_at_utc": "2026-08-09T00:00:00Z",
+                "observed_completed_at_utc": "2026-08-09T00:00:01Z",
+                "redirects": [],
+                "network_result": "admitted-request-completed",
+            })
+            schema = Path(__file__).parents[1] / "schemas" / "phase0-lock-inventory-v1.json"
+            with self.assertRaisesRegex(phase0_lock.LockError, "regular private file"):
+                phase0_lock.seal(policy, root, schema, "b" * 40)
 
     def test_closure_requires_approved_required_records_for_each_required_component(self):
         catalog = self.policy()
