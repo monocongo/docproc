@@ -411,7 +411,7 @@ def download_exact(item: Dict[str, Any], root: Path) -> Dict[str, Any]:
     expected = acquisition["expected"]
     descriptor_metadata = acquisition["descriptor"]
     url = acquisition["url"]
-    opener = urllib.request.build_opener(NoRedirect)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect)
     request = urllib.request.Request(url, headers={"User-Agent": "docproc-phase0-lock/1"})
     started = utc_now()
     try:

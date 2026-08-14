@@ -104,6 +104,18 @@ class Phase0LockTests(unittest.TestCase):
                 phase0_lock.prefetch(phase0_lock.validate_policy(policy), Path(temporary))
         build_opener.assert_not_called()
 
+    def test_exact_download_disables_ambient_proxies(self):
+        item = self.policy()["artifacts"][0]
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            phase0_lock.urllib.request, "build_opener", side_effect=RuntimeError("stop before request")
+        ) as build_opener:
+            with self.assertRaisesRegex(RuntimeError, "stop before request"):
+                phase0_lock.download_exact(item, Path(temporary))
+        proxy_handler, redirect_handler = build_opener.call_args.args
+        self.assertIsInstance(proxy_handler, phase0_lock.urllib.request.ProxyHandler)
+        self.assertEqual(proxy_handler.proxies, {})
+        self.assertIs(redirect_handler, phase0_lock.NoRedirect)
+
     def test_closure_rejects_an_unapproved_component(self):
         catalog = self.policy()
         catalog["policy_version"] = "phase0-base-primary-v1"
