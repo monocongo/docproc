@@ -10,8 +10,10 @@
     "kind",
     "source_commit",
     "policy_digest",
+    "reviewed_controls",
     "source_decisions",
     "environment_ref",
+    "acquisition_attestation",
     "inventory",
     "failures",
     "exclusions",
@@ -26,8 +28,10 @@
     "kind": {"const": "lock-inventory"},
     "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
     "policy_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "reviewed_controls": {"$ref": "#/$defs/reviewedControls"},
     "source_decisions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/sourceDecision"}},
     "environment_ref": {"$ref": "#/$defs/environmentRef"},
+    "acquisition_attestation": {"const": "unauthenticated-harness-observation"},
     "inventory": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/inventoryItem"}},
     "failures": {"type": "array", "items": {"$ref": "#/$defs/failure"}},
     "exclusions": {"type": "array", "items": {"$ref": "#/$defs/exclusion"}},
@@ -37,6 +41,24 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "reviewedControls": {
+      "type": "object",
+      "required": [
+        "catalog_digest",
+        "policy_file_digest",
+        "schema_digest",
+        "host_baseline_digest",
+        "producer_commit"
+      ],
+      "properties": {
+        "catalog_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "policy_file_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "schema_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "host_baseline_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "producer_commit": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"}
+      },
+      "additionalProperties": false
+    },
     "environmentRef": {
       "type": "object",
       "required": ["kind", "content_digest"],
@@ -135,7 +157,7 @@
         "observed_started_at_utc": {"type": "string", "pattern": ".*Z$"},
         "observed_completed_at_utc": {"type": "string", "pattern": ".*Z$"},
         "redirects": {"type": "array", "maxItems": 0},
-        "network_result": {"const": "admitted-request-completed"}
+        "network_result": {"const": "harness-recorded-request-completed-unauthenticated"}
       },
       "additionalProperties": false
     },

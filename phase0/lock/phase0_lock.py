@@ -50,6 +50,71 @@ class SchemaValueMismatch(LockError):
     """A candidate value did not satisfy a valid schema constraint."""
 
 
+class ReviewedControls:
+    """Independently retained identities for every admission-review control."""
+
+    def __init__(
+        self, catalog_digest: str, policy_file_digest: str, schema_digest: str,
+        host_baseline_digest: str, producer_commit: str,
+    ):
+        digests = {
+            "catalog_digest": catalog_digest,
+            "policy_file_digest": policy_file_digest,
+            "schema_digest": schema_digest,
+            "host_baseline_digest": host_baseline_digest,
+        }
+        for name, digest in digests.items():
+            if not isinstance(digest, str) or not SHA256_RE.fullmatch(digest):
+                die("reviewed control %s is not an exact SHA-256" % name)
+        if not isinstance(producer_commit, str) or not HEX_COMMIT_RE.fullmatch(producer_commit):
+            die("reviewed producer commit must be a full lowercase SHA")
+        self.catalog_digest = catalog_digest
+        self.policy_file_digest = policy_file_digest
+        self.schema_digest = schema_digest
+        self.host_baseline_digest = host_baseline_digest
+        self.producer_commit = producer_commit
+
+    def record(self) -> Dict[str, str]:
+        return {
+            "catalog_digest": self.catalog_digest,
+            "policy_file_digest": self.policy_file_digest,
+            "schema_digest": self.schema_digest,
+            "host_baseline_digest": self.host_baseline_digest,
+            "producer_commit": self.producer_commit,
+        }
+
+
+class PrivateRoot:
+    """One private evidence root pinned by an open directory descriptor."""
+
+    def __init__(self, path: Path, descriptor: int):
+        self.path = path
+        self.descriptor = descriptor
+
+    def __truediv__(self, child: str) -> Path:
+        return self.path / child
+
+    def stat(self) -> os.stat_result:
+        return os.fstat(self.descriptor)
+
+    def close(self) -> None:
+        if self.descriptor >= 0:
+            os.close(self.descriptor)
+            self.descriptor = -1
+
+    def __enter__(self) -> "PrivateRoot":
+        return self
+
+    def __exit__(self, *_: Any) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except OSError:
+            pass
+
+
 def die(message: str) -> NoReturn:
     raise LockError(message)
 
@@ -196,22 +261,6 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def ensure_private_directory(directory: Path) -> None:
-    """Require an owner-only, non-symlink directory for private evidence."""
-    try:
-        info = directory.lstat()
-    except FileNotFoundError:
-        try:
-            directory.mkdir(mode=0o700)
-        except FileExistsError:
-            pass
-        info = directory.lstat()
-    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
-        die("private evidence path is not a directory")
-    if info.st_uid != os.getuid() or info.st_mode & 0o077:
-        die("private evidence directory must be owned and accessible only by this user")
-
-
 def validate_private_stat(
     info: os.stat_result, context: str, expected_type: str, require_single_link: bool = True
 ) -> None:
@@ -225,12 +274,61 @@ def validate_private_stat(
         die("%s must be a singly linked regular private file" % context)
 
 
+def private_root_path(root: Path | PrivateRoot) -> Path:
+    return root.path if isinstance(root, PrivateRoot) else root
+
+
+def open_absolute_private_root(path: Path, create: bool) -> int:
+    """Open a root once by walking from / without following any path component."""
+    path = path.resolve()
+    if not path.is_absolute() or any(not hasattr(os, name) for name in ("O_DIRECTORY", "O_NOFOLLOW")):
+        die("private evidence root requires absolute no-follow directory access")
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    descriptors = []
+    try:
+        current = os.open("/", flags)
+        descriptors.append(current)
+        for part in path.parts[1:]:
+            try:
+                next_descriptor = os.open(part, flags, dir_fd=current)
+            except FileNotFoundError:
+                if not create:
+                    raise
+                try:
+                    os.mkdir(part, mode=0o700, dir_fd=current)
+                except FileExistsError:
+                    pass
+                next_descriptor = os.open(part, flags, dir_fd=current)
+            current = next_descriptor
+            descriptors.append(current)
+        result = descriptors.pop()
+        validate_private_stat(os.fstat(result), "private evidence root", "directory")
+        return result
+    except LockError:
+        raise
+    except OSError as exc:
+        die("cannot open private evidence root: %s" % type(exc).__name__)
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+
+
+def duplicate_private_root_descriptor(root: Path | PrivateRoot) -> int:
+    if isinstance(root, PrivateRoot):
+        if root.descriptor < 0:
+            die("private evidence root is closed")
+        descriptor = os.dup(root.descriptor)
+        validate_private_stat(os.fstat(descriptor), "private evidence root", "directory")
+        return descriptor
+    return open_absolute_private_root(root, create=False)
+
+
 def open_private_directory_descriptor(
-    root: Path, directory: Path, context: str, missing_ok: bool = False
+    root: Path | PrivateRoot, directory: Path, context: str, missing_ok: bool = False
 ) -> int | None:
     """Open one private directory by walking no-follow descriptors from root."""
     try:
-        relative = directory.relative_to(root)
+        relative = directory.relative_to(private_root_path(root))
     except ValueError:
         die("%s escapes the private evidence root" % context)
     if any(not hasattr(os, name) for name in ("O_DIRECTORY", "O_NOFOLLOW")):
@@ -238,7 +336,7 @@ def open_private_directory_descriptor(
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
     descriptors = []
     try:
-        current = os.open(root, flags)
+        current = duplicate_private_root_descriptor(root)
         descriptors.append(current)
         validate_private_stat(os.fstat(current), context + " root", "directory")
         for part in relative.parts:
@@ -296,14 +394,16 @@ def open_private_directory_at(
 
 
 def open_or_create_private_directory_descriptor(
-    root: Path, directory: Path, context: str
+    root: Path | PrivateRoot, directory: Path, context: str
 ) -> int:
     """Create and open a private directory tree through pinned parent descriptors."""
     try:
-        relative = directory.relative_to(root)
+        relative = directory.relative_to(private_root_path(root))
     except ValueError:
         die("%s escapes the private evidence root" % context)
-    root_descriptor = open_private_directory_descriptor(root, root, context + " root")
+    root_descriptor = open_private_directory_descriptor(
+        root, private_root_path(root), context + " root"
+    )
     assert root_descriptor is not None
     try:
         return open_private_directory_at(root_descriptor, relative.parts, context, create=True)
@@ -312,11 +412,11 @@ def open_or_create_private_directory_descriptor(
 
 
 def open_private_file_descriptor(
-    root: Path, path: Path, context: str, require_single_link: bool = True
+    root: Path | PrivateRoot, path: Path, context: str, require_single_link: bool = True
 ) -> int:
     """Open and validate one private file through no-follow directory descriptors."""
     try:
-        relative = path.relative_to(root)
+        relative = path.relative_to(private_root_path(root))
     except ValueError:
         die("%s escapes the private evidence root" % context)
     if not relative.parts:
@@ -394,7 +494,7 @@ def sha256_private_file_at(directory_descriptor: int, name: str, context: str) -
     return digest.hexdigest(), length
 
 
-def read_private_bytes(root: Path, path: Path, context: str) -> bytes:
+def read_private_bytes(root: Path | PrivateRoot, path: Path, context: str) -> bytes:
     descriptor = open_private_file_descriptor(root, path, context)
     try:
         with os.fdopen(descriptor, "rb") as handle:
@@ -403,11 +503,11 @@ def read_private_bytes(root: Path, path: Path, context: str) -> bytes:
         die("cannot read %s: %s" % (context, type(exc).__name__))
 
 
-def load_private_json(root: Path, path: Path, context: str) -> Any:
+def load_private_json(root: Path | PrivateRoot, path: Path, context: str) -> Any:
     return parse_private_json(read_private_bytes(root, path, context), context)
 
 
-def sha256_private_file(root: Path, path: Path, context: str) -> Tuple[str, int]:
+def sha256_private_file(root: Path | PrivateRoot, path: Path, context: str) -> Tuple[str, int]:
     descriptor = open_private_file_descriptor(root, path, context)
     digest = hashlib.sha256()
     length = 0
@@ -424,10 +524,10 @@ def sha256_private_file(root: Path, path: Path, context: str) -> Tuple[str, int]
     return digest.hexdigest(), length
 
 
-def write_once(root: Path, path: Path, data: bytes) -> None:
+def write_once(root: Path | PrivateRoot, path: Path, data: bytes) -> None:
     """Create private content once through a pinned parent, or prove equality."""
     try:
-        relative = path.relative_to(root)
+        relative = path.relative_to(private_root_path(root))
     except ValueError:
         die("immutable private evidence escapes its root")
     if not relative.parts:
@@ -463,7 +563,7 @@ def write_once(root: Path, path: Path, data: bytes) -> None:
         os.close(parent)
 
 
-def write_json_once(root: Path, path: Path, value: Any) -> None:
+def write_json_once(root: Path | PrivateRoot, path: Path, value: Any) -> None:
     write_once(root, path, jcs_bytes(value) + b"\n")
 
 
@@ -538,7 +638,7 @@ def validate_host_baseline(record: Any) -> Dict[str, Any]:
     return record
 
 
-def load_host_baseline(root: Path, expected_digest: str | None = None) -> Dict[str, str]:
+def load_host_baseline(root: Path | PrivateRoot, expected_digest: str | None = None) -> Dict[str, str]:
     """Bind sealing to the exact private host baseline bytes."""
     path = root / "host-baseline.json"
     data = read_private_bytes(root, path, "host baseline")
@@ -871,14 +971,13 @@ def repository_root() -> Path:
     die("phase0-lock must be stored in a Git worktree")
 
 
-def safe_root(raw_root: str) -> Path:
+def safe_root(raw_root: str) -> PrivateRoot:
     root = Path(raw_root).expanduser().resolve()
     checkout = repository_root()
     if root == checkout or checkout in root.parents:
         die("evidence root must be outside the Git worktree: %s" % checkout)
-    root.mkdir(parents=True, mode=0o700, exist_ok=True)
-    ensure_private_directory(root)
-    return root
+    descriptor = open_absolute_private_root(root, create=True)
+    return PrivateRoot(root, descriptor)
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -951,13 +1050,13 @@ def install_artifact_once_at(
 
 
 def install_artifact_once(
-    root: Path, temporary: Path, source_descriptor: int, artifact_path: Path,
+    root: Path | PrivateRoot, temporary: Path, source_descriptor: int, artifact_path: Path,
     item_id: str, observed: str, length: int
 ) -> None:
     """Atomically install an immutable artifact without pathname-based parent reuse."""
     try:
-        temporary_relative = temporary.relative_to(root)
-        artifact_relative = artifact_path.relative_to(root)
+        temporary_relative = temporary.relative_to(private_root_path(root))
+        artifact_relative = artifact_path.relative_to(private_root_path(root))
     except ValueError:
         die("artifact installation path escapes the private evidence root")
     if len(temporary_relative.parts) != 1 or artifact_relative.parts != (
@@ -975,7 +1074,7 @@ def install_artifact_once(
         os.close(root_descriptor)
 
 
-def download_exact(item: Dict[str, Any], root: Path) -> Dict[str, Any]:
+def download_exact(item: Dict[str, Any], root: Path | PrivateRoot) -> Dict[str, Any]:
     """Download one already-admitted URL, forbidding redirect and byte surprises."""
     acquisition = item["acquisition"]
     expected = acquisition["expected"]
@@ -1053,7 +1152,7 @@ def download_exact(item: Dict[str, Any], root: Path) -> Dict[str, Any]:
         "observed_started_at_utc": started,
         "observed_completed_at_utc": utc_now(),
         "redirects": [],
-        "network_result": "admitted-request-completed",
+        "network_result": "harness-recorded-request-completed-unauthenticated",
     }
     write_json_once(root, root / "observations" / (item["id"] + ".json"), observation)
     return observation
@@ -1089,7 +1188,7 @@ def validate_closure(catalog: Dict[str, Any], exact_policy: Dict[str, Any]) -> N
         die("exact-byte policy does not cover required catalog components: %s" % ", ".join(sorted(missing)))
 
 
-def record_prefetch_failure(root: Path, artifact_id: str) -> None:
+def record_prefetch_failure(root: Path | PrivateRoot, artifact_id: str) -> None:
     """Retain a failed admitted request without retaining credential or local-path data."""
     failure = {
         "failure_version": "phase0-acquisition-failure-v1",
@@ -1104,7 +1203,7 @@ def record_prefetch_failure(root: Path, artifact_id: str) -> None:
     write_json_once(root, root / "failures" / event_name, failure)
 
 
-def prefetch(policy: Dict[str, Any], root: Path) -> None:
+def prefetch(policy: Dict[str, Any], root: Path | PrivateRoot) -> None:
     policy = validate_policy(policy)
     if policy["policy_version"] != "phase0-exact-byte-v1":
         die("prefetch requires a reviewed phase0-exact-byte-v1 policy")
@@ -1136,7 +1235,7 @@ def artifact_descriptor(content_digest: str, byte_length: int, metadata: Dict[st
     return {"address": address, "descriptor": descriptor}
 
 
-def load_observations(root: Path, policy: Dict[str, Any]) -> List[Dict[str, Any]]:
+def load_observations(root: Path | PrivateRoot, policy: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Load every acquired record and prove it matches its approved policy row."""
     observations: List[Dict[str, Any]] = []
     for item in policy_items(policy):
@@ -1157,7 +1256,7 @@ def load_observations(root: Path, policy: Dict[str, Any]) -> List[Dict[str, Any]
             or observed.get("method") != "GET"
             or observed.get("status") != 200
             or observed.get("redirects") != []
-            or observed.get("network_result") != "admitted-request-completed"
+            or observed.get("network_result") != "harness-recorded-request-completed-unauthenticated"
             or observed.get("content_digest") != "sha256:" + expected["sha256"]
             or observed.get("byte_length") != expected["byte_length"]
         ):
@@ -1174,7 +1273,36 @@ def load_observations(root: Path, policy: Dict[str, Any]) -> List[Dict[str, Any]
     return observations
 
 
-def load_optional_records(root: Path, directory: str) -> List[Dict[str, Any]]:
+def validate_git_provenance_records(
+    policy: Dict[str, Any], root: Path | PrivateRoot
+) -> None:
+    """Validate exact canonical statements binding Git revisions to acquired bytes."""
+    items = {item["id"]: item for item in policy_items(policy)}
+    for item in items.values():
+        reference = item["origin"].get("immutable_reference", "")
+        if item["admission_status"] != "approved-for-acquisition" or not reference.startswith("git:"):
+            continue
+        provenance = item["origin"]["provenance"]
+        target = items[provenance["artifact_id"]]
+        target_digest = target["acquisition"]["expected"]["sha256"]
+        path = root / "artifacts" / ("sha256-" + target_digest)
+        data = read_private_bytes(root, path, "Git origin provenance for %s" % item["id"])
+        if len(data) > 65536:
+            die("Git origin provenance for %s exceeds the bounded statement size" % item["id"])
+        statement = parse_private_json(data, "Git origin provenance for %s" % item["id"])
+        expected = {
+            "provenance_version": "phase0-git-origin-provenance-v1",
+            "subject_artifact_id": item["id"],
+            "authority": item["origin"]["authority"],
+            "revision": item["origin"]["revision"],
+            "commit": reference.removeprefix("git:"),
+            "acquired_content_digest": "sha256:" + item["acquisition"]["expected"]["sha256"],
+        }
+        if statement != expected or data != jcs_bytes(statement) + b"\n":
+            die("Git origin provenance for %s does not bind the reviewed commit and acquired digest" % item["id"])
+
+
+def load_optional_records(root: Path | PrivateRoot, directory: str) -> List[Dict[str, Any]]:
     records_path = root / directory
     descriptor = open_private_directory_descriptor(
         root, records_path, "%s records" % directory, missing_ok=True
@@ -1329,20 +1457,20 @@ def validate_lock_inventory_payload(payload: Dict[str, Any], schema: Any) -> Non
 
 
 def seal(
-    policy: Dict[str, Any], root: Path, schema: Path, source_commit: str,
-    expected_schema_digest: str | None = None, expected_host_baseline_digest: str | None = None,
+    policy: Dict[str, Any], root: Path | PrivateRoot, schema: Path,
+    source_commit: str, controls: ReviewedControls,
 ) -> str:
     policy = validate_policy(policy)
     if policy["policy_version"] != "phase0-exact-byte-v1":
         die("sealing requires a reviewed phase0-exact-byte-v1 policy")
-    if not HEX_COMMIT_RE.fullmatch(source_commit):
-        die("source commit must be a full lowercase SHA")
-    ensure_private_directory(root)
+    if source_commit != controls.producer_commit:
+        die("source commit does not match the independently reviewed producer commit")
     schema_definition, schema_bytes = load_reviewed_json_document(
-        schema, expected_schema_digest, "schema"
+        schema, controls.schema_digest, "schema"
     )
-    environment_ref = load_host_baseline(root, expected_host_baseline_digest)
+    environment_ref = load_host_baseline(root, controls.host_baseline_digest)
     observations = load_observations(root, policy)
+    validate_git_provenance_records(policy, root)
     inventory = []
     for observation in observations:
         item = next(item for item in policy_items(policy) if item["id"] == observation["artifact_id"])
@@ -1377,8 +1505,10 @@ def seal(
         "kind": "lock-inventory",
         "source_commit": source_commit,
         "policy_digest": "sha256:" + sha256_bytes(jcs_bytes(policy)),
+        "reviewed_controls": controls.record(),
         "source_decisions": source_decisions,
         "environment_ref": environment_ref,
+        "acquisition_attestation": "unauthenticated-harness-observation",
         "inventory": inventory,
         "failures": failures,
         "exclusions": exclusions,
@@ -1418,11 +1548,18 @@ def seal(
         "- Evidence address: `%s`" % evidence_address,
         "- Payload address: `%s`" % payload_address,
         "- Scope: base and primary-candidate admission review candidate only; no artifact is admitted.",
+        "- Outcome: pending-human-admission-review.",
+        "- Environment: `%s`." % environment_ref["content_digest"],
+        "- Acquisition attestation: unauthenticated harness observation; external capture evidence is still required.",
         "- Content classification: metadata-only.",
         "- Publication disposition: private-only.",
+        "- Specification IDs: %s." % ", ".join(source["id"] for source in source_decisions),
+        "- Decision commits: %s." % ", ".join(source["commit"] for source in source_decisions),
         "- Artifacts: %s." % ", ".join(row["artifact_id"] for row in inventory),
+        "- Failures: %s." % (", ".join(row["artifact_id"] for row in failures) or "none"),
+        "- Exclusions: %s." % (", ".join(row["artifact_id"] for row in exclusions) or "none"),
         "",
-        "This generated summary does not itself approve an artifact or authorize execution.",
+        "This generated summary admits no artifact, does not authenticate acquisition, and does not authorize execution.",
         "",
     ]).encode("utf-8")
     write_once(root, record / "summary.md", summary)
@@ -1463,13 +1600,17 @@ def validate_phase0_envelope(envelope: Any, payload: Dict[str, Any], expected_bi
         die("evidence envelope does not bind the sealed artifact descriptors")
 
 
-def validate_payload_policy_binding(payload: Dict[str, Any], policy: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+def validate_payload_policy_binding(
+    payload: Dict[str, Any], policy: Dict[str, Any], controls: ReviewedControls
+) -> Dict[str, Dict[str, Any]]:
     """Bind policy-owned evidence metadata to the reviewed exact-byte policy."""
     policy = validate_policy(policy)
     if policy["policy_version"] != "phase0-exact-byte-v1":
         die("verification requires a reviewed phase0-exact-byte-v1 policy")
     if payload["policy_digest"] != "sha256:" + sha256_bytes(jcs_bytes(policy)):
         die("payload policy digest does not match the reviewed policy")
+    if payload["reviewed_controls"] != controls.record():
+        die("payload controls do not match the independently reviewed controls")
     expected_sources = sorted(policy["source_decisions"], key=lambda source: source["id"])
     if payload["source_decisions"] != expected_sources:
         die("payload source decisions do not match the reviewed policy")
@@ -1494,13 +1635,13 @@ def validate_payload_policy_binding(payload: Dict[str, Any], policy: Dict[str, A
 
 
 def verify(
-    root: Path, evidence_address: str, schema: Path, policy: Dict[str, Any],
-    expected_schema_digest: str | None = None, expected_host_baseline_digest: str | None = None,
+    root: Path | PrivateRoot, evidence_address: str, schema: Path,
+    policy: Dict[str, Any], controls: ReviewedControls,
 ) -> None:
     if not ADDRESS_RE.fullmatch(evidence_address) or not evidence_address.startswith("evr1:"):
         die("invalid evidence address")
     schema_definition, schema_bytes = load_reviewed_json_document(
-        schema, expected_schema_digest, "schema"
+        schema, controls.schema_digest, "schema"
     )
     record = root / "records" / evidence_address.replace(":", "_")
     payload = load_private_json(root, record / "payload.json", "sealed payload")
@@ -1510,11 +1651,12 @@ def verify(
     if not isinstance(envelope, dict):
         die("evidence envelope is invalid")
     validate_lock_inventory_payload(payload, schema_definition)
-    if payload["environment_ref"] != load_host_baseline(root, expected_host_baseline_digest):
+    if payload["environment_ref"] != load_host_baseline(root, controls.host_baseline_digest):
         die("sealed host baseline does not match the retained machine evidence")
     if payload["payload_schema_digest"] != "sha256:" + sha256_bytes(schema_bytes):
         die("payload schema digest mismatch")
-    expected_items = validate_payload_policy_binding(payload, policy)
+    expected_items = validate_payload_policy_binding(payload, policy, controls)
+    validate_git_provenance_records(policy, root)
     expected_bindings = []
     inventory = payload["inventory"]
     artifact_ids = [row["artifact_id"] for row in inventory]
@@ -1672,25 +1814,27 @@ def main(argv: List[str]) -> int:
     verify_cmd.add_argument("--schema", type=Path, required=True)
     verify_cmd.add_argument("--schema-digest", required=True)
     verify_cmd.add_argument("--host-baseline-digest", required=True)
+    verify_cmd.add_argument("--producer-commit", required=True)
     verify_cmd.add_argument("--evidence-address", required=True)
     host_cmd = sub.add_parser("capture-host-baseline")
     host_cmd.add_argument("--root", required=True, help="private evidence root outside this Git worktree")
     args = parser.parse_args(argv)
     try:
         if args.command == "capture-host-baseline":
-            root = safe_root(args.root)
-            record_bytes = jcs_bytes(host_record()) + b"\n"
-            write_once(root, root / "host-baseline.json", record_bytes)
-            print("sha256:" + sha256_bytes(record_bytes))
+            with safe_root(args.root) as root:
+                record_bytes = jcs_bytes(host_record()) + b"\n"
+                write_once(root, root / "host-baseline.json", record_bytes)
+                print("sha256:" + sha256_bytes(record_bytes))
         elif args.command == "verify":
             catalog = validate_policy(load_reviewed_json(args.catalog, args.catalog_digest, "catalog"))
             policy = validate_policy(load_reviewed_json(args.policy, args.policy_digest, "policy"))
             validate_closure(catalog, policy)
-            verify(
-                safe_root(args.root), args.evidence_address, args.schema, policy,
-                expected_schema_digest=args.schema_digest,
-                expected_host_baseline_digest=args.host_baseline_digest,
+            controls = ReviewedControls(
+                args.catalog_digest, args.policy_digest, args.schema_digest,
+                args.host_baseline_digest, args.producer_commit,
             )
+            with safe_root(args.root) as root:
+                verify(root, args.evidence_address, args.schema, policy, controls)
         elif args.command == "validate-policy":
             validate_policy(load_json(args.policy))
             print("policy valid; no network request made")
@@ -1701,13 +1845,15 @@ def main(argv: List[str]) -> int:
             if args.command == "validate-closure":
                 print("exact-byte policy covers only the base/primary catalog; no network request made")
             elif args.command == "prefetch":
-                prefetch(policy, safe_root(args.root))
+                with safe_root(args.root) as root:
+                    prefetch(policy, root)
             elif args.command == "seal":
-                seal(
-                    policy, safe_root(args.root), args.schema, args.source_commit,
-                    expected_schema_digest=args.schema_digest,
-                    expected_host_baseline_digest=args.host_baseline_digest,
+                controls = ReviewedControls(
+                    args.catalog_digest, args.policy_digest, args.schema_digest,
+                    args.host_baseline_digest, args.source_commit,
                 )
+                with safe_root(args.root) as root:
+                    seal(policy, root, args.schema, args.source_commit, controls)
         return 0
     except LockError as exc:
         print("phase0-lock: %s" % exc, file=sys.stderr)
