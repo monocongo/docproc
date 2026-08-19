@@ -11,6 +11,7 @@
     "source_commit",
     "policy_digest",
     "source_decisions",
+    "environment_ref",
     "inventory",
     "failures",
     "exclusions",
@@ -26,6 +27,7 @@
     "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
     "policy_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
     "source_decisions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/sourceDecision"}},
+    "environment_ref": {"$ref": "#/$defs/environmentRef"},
     "inventory": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/inventoryItem"}},
     "failures": {"type": "array", "items": {"$ref": "#/$defs/failure"}},
     "exclusions": {"type": "array", "items": {"$ref": "#/$defs/exclusion"}},
@@ -35,6 +37,15 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "environmentRef": {
+      "type": "object",
+      "required": ["kind", "content_digest"],
+      "properties": {
+        "kind": {"const": "phase0-host-baseline-v1"},
+        "content_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
     "sourceDecision": {
       "type": "object",
       "required": ["id", "commit"],
@@ -54,12 +65,33 @@
       },
       "additionalProperties": false
     },
+    "licenseEvidenceRef": {
+      "type": "object",
+      "required": ["role", "artifact_id", "content_digest"],
+      "properties": {
+        "role": {"type": "string", "pattern": "^(license-text|copyright|notice|metadata|review-record)$"},
+        "artifact_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+$"},
+        "content_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
     "license": {
       "type": "object",
-      "required": ["evidence_class", "review_status"],
+      "required": [
+        "evidence_class",
+        "review_status",
+        "license_expression",
+        "copyright_status",
+        "notice_status",
+        "evidence_refs"
+      ],
       "properties": {
         "evidence_class": {"type": "string", "minLength": 1},
-        "review_status": {"type": "string", "pattern": "^(reviewed|reviewed-exception)$"}
+        "review_status": {"type": "string", "pattern": "^(reviewed|reviewed-exception)$"},
+        "license_expression": {"type": "string", "minLength": 1},
+        "copyright_status": {"type": "string", "pattern": "^(present|reviewed-not-present)$"},
+        "notice_status": {"type": "string", "pattern": "^(present|reviewed-not-present)$"},
+        "evidence_refs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/licenseEvidenceRef"}}
       },
       "additionalProperties": false
     },

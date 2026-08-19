@@ -37,6 +37,8 @@ IMMUTABLE_REFERENCE_RE = re.compile(r"^(?:git:[0-9a-f]{40,64}|sha256:[0-9a-f]{64
 MEDIA_TYPE_RE = re.compile(r"^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$")
 IANA_TOKEN_RE = re.compile(r"^[a-z0-9][a-z0-9!#$&^_.+-]*$")
 TEXTUAL_MEDIA_TYPE_RE = re.compile(r"^(?:text/|application/(?:json|xml|javascript|sql|graphql)$|application/.+\+(?:json|xml)$)")
+LICENSE_EVIDENCE_ROLES = {"license-text", "copyright", "notice", "metadata", "review-record"}
+COPYRIGHT_NOTICE_STATUSES = {"present", "reviewed-not-present"}
 SCRIPT_DIRECTORY = Path(__file__).resolve().parent
 
 
@@ -70,6 +72,13 @@ def load_json(path: Path) -> Any:
         return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=no_duplicate_object)
     except (OSError, json.JSONDecodeError) as exc:
         die("cannot read JSON %s: %s" % (path, exc))
+
+
+def parse_private_json(data: bytes, context: str) -> Any:
+    try:
+        return json.loads(data.decode("utf-8"), object_pairs_hook=no_duplicate_object)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        die("cannot decode %s: %s" % (context, type(exc).__name__))
 
 
 def read_schema_bytes(path: Path) -> bytes:
@@ -209,15 +218,99 @@ def ensure_private_file(root: Path, path: Path, context: str) -> None:
         die("%s must be owned and accessible only by this user" % context)
 
 
+def validate_private_stat(
+    info: os.stat_result, context: str, expected_type: str, require_single_link: bool = True
+) -> None:
+    if info.st_uid != os.getuid() or info.st_mode & 0o077:
+        die("%s must be owned and accessible only by this user" % context)
+    if expected_type == "directory" and not stat.S_ISDIR(info.st_mode):
+        die("%s must be a regular private directory" % context)
+    if expected_type == "file" and (
+        not stat.S_ISREG(info.st_mode) or require_single_link and info.st_nlink != 1
+    ):
+        die("%s must be a singly linked regular private file" % context)
+
+
+def open_private_file_descriptor(
+    root: Path, path: Path, context: str, require_single_link: bool = True
+) -> int:
+    """Open and validate one private file through no-follow directory descriptors."""
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        die("%s escapes the private evidence root" % context)
+    if not relative.parts:
+        die("%s does not name a private file" % context)
+    required_flags = ("O_DIRECTORY", "O_NOFOLLOW")
+    if any(not hasattr(os, name) for name in required_flags):
+        die("descriptor-bound private reads are unavailable on this platform")
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    file_flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    directory_descriptors = []
+    try:
+        current = os.open(root, directory_flags)
+        directory_descriptors.append(current)
+        validate_private_stat(os.fstat(current), context + " root", "directory")
+        for part in relative.parts[:-1]:
+            current = os.open(part, directory_flags, dir_fd=current)
+            directory_descriptors.append(current)
+            validate_private_stat(os.fstat(current), context + " parent", "directory")
+        descriptor = os.open(relative.parts[-1], file_flags, dir_fd=current)
+        try:
+            validate_private_stat(
+                os.fstat(descriptor), context, "file", require_single_link=require_single_link
+            )
+        except BaseException:
+            os.close(descriptor)
+            raise
+        return descriptor
+    except LockError:
+        raise
+    except OSError as exc:
+        die("cannot open %s: %s" % (context, type(exc).__name__))
+    finally:
+        for directory_descriptor in reversed(directory_descriptors):
+            os.close(directory_descriptor)
+
+
+def read_private_bytes(root: Path, path: Path, context: str) -> bytes:
+    descriptor = open_private_file_descriptor(root, path, context)
+    try:
+        with os.fdopen(descriptor, "rb") as handle:
+            return handle.read()
+    except OSError as exc:
+        die("cannot read %s: %s" % (context, type(exc).__name__))
+
+
+def load_private_json(root: Path, path: Path, context: str) -> Any:
+    return parse_private_json(read_private_bytes(root, path, context), context)
+
+
+def sha256_private_file(root: Path, path: Path, context: str) -> Tuple[str, int]:
+    descriptor = open_private_file_descriptor(root, path, context)
+    digest = hashlib.sha256()
+    length = 0
+    try:
+        with os.fdopen(descriptor, "rb") as handle:
+            while True:
+                block = handle.read(1024 * 1024)
+                if not block:
+                    break
+                digest.update(block)
+                length += len(block)
+    except OSError as exc:
+        die("cannot read %s: %s" % (context, type(exc).__name__))
+    return digest.hexdigest(), length
+
+
 def write_once(root: Path, path: Path, data: bytes) -> None:
     """Create private content once, or prove an existing file has identical bytes."""
     ensure_private_tree(root, path.parent)
     try:
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError:
-        ensure_private_file(root, path, "immutable private evidence")
-        if path.read_bytes() != data:
-            die("immutable path already contains different bytes: %s" % path)
+        if read_private_bytes(root, path, "immutable private evidence") != data:
+            die("immutable private evidence already contains different bytes")
     else:
         with os.fdopen(descriptor, "wb") as handle:
             handle.write(data)
@@ -225,6 +318,90 @@ def write_once(root: Path, path: Path, data: bytes) -> None:
 
 def write_json_once(root: Path, path: Path, value: Any) -> None:
     write_once(root, path, jcs_bytes(value) + b"\n")
+
+
+def validate_host_baseline(record: Any) -> Dict[str, Any]:
+    required = {
+        "record_version", "recorded_at_utc", "monotonic_ns", "clock_source", "platform",
+        "machine", "platform_records", "python", "executables", "publication_disposition",
+    }
+    if not isinstance(record, dict) or set(record) != required:
+        die("host baseline has an invalid member set")
+    assert_json_domain(record)
+    if record["record_version"] != "phase0-host-baseline-v1":
+        die("host baseline has an invalid version")
+    if not isinstance(record["recorded_at_utc"], str) or not record["recorded_at_utc"].endswith("Z"):
+        die("host baseline has an invalid UTC timestamp")
+    if not isinstance(record["monotonic_ns"], str) or not record["monotonic_ns"].isdigit():
+        die("host baseline has an invalid monotonic clock observation")
+    for field in ("clock_source", "platform", "machine"):
+        if not isinstance(record[field], str) or not record[field]:
+            die("host baseline has an invalid %s" % field)
+    if record["machine"] != "arm64":
+        die("host baseline is not the required arm64 machine")
+    if not isinstance(record["platform_records"], dict) or set(record["platform_records"]) != {
+        "sw_vers", "cpu_brand", "memory_bytes",
+    }:
+        die("host baseline has invalid platform records")
+    for platform_record in record["platform_records"].values():
+        if not isinstance(platform_record, dict):
+            die("host baseline has invalid platform observations")
+        status = platform_record.get("status")
+        if status == "unavailable":
+            if set(platform_record) != {"status", "detail"} or not isinstance(platform_record["detail"], str):
+                die("host baseline has an invalid unavailable platform observation")
+        elif status in {"observed", "failed"}:
+            if (
+                set(platform_record) != {"status", "exit_code", "output"}
+                or type(platform_record["exit_code"]) is not int
+                or not isinstance(platform_record["output"], str)
+            ):
+                die("host baseline has an invalid platform command observation")
+        else:
+            die("host baseline has an unknown platform observation status")
+    python_record = record["python"]
+    if not isinstance(python_record, dict) or set(python_record) != {"version", "sqlite_runtime"} or not all(
+        isinstance(value, str) and value for value in python_record.values()
+    ):
+        die("host baseline has an invalid Python/SQLite record")
+    executable_names = ["uv", "docker", "docker-compose", "qpdf", "ollama"]
+    if (
+        not isinstance(record["executables"], list)
+        or [item.get("name") for item in record["executables"] if isinstance(item, dict)] != executable_names
+    ):
+        die("host baseline must contain every fixed executable record")
+    for executable in record["executables"]:
+        if set(executable) == {"name", "sha256", "byte_length"}:
+            if (
+                not isinstance(executable["sha256"], str)
+                or not SHA256_RE.fullmatch(executable["sha256"])
+                or type(executable["byte_length"]) is not int
+                or executable["byte_length"] < 0
+            ):
+                die("host baseline has an invalid executable digest record")
+        elif executable.get("status") == "not-present" and set(executable) == {"name", "status"}:
+            pass
+        elif executable.get("status") == "unavailable" and set(executable) == {"name", "status", "detail"}:
+            if not isinstance(executable["detail"], str):
+                die("host baseline has an invalid unavailable executable record")
+        else:
+            die("host baseline has an invalid executable record")
+    if record["publication_disposition"] != "private-only":
+        die("host baseline must remain private-only")
+    return record
+
+
+def load_host_baseline(root: Path) -> Dict[str, str]:
+    """Bind sealing to the exact private host baseline bytes."""
+    path = root / "host-baseline.json"
+    data = read_private_bytes(root, path, "host baseline")
+    record = validate_host_baseline(parse_private_json(data, "host baseline"))
+    if data != jcs_bytes(record) + b"\n":
+        die("host baseline must use canonical JSON bytes")
+    return {
+        "kind": "phase0-host-baseline-v1",
+        "content_digest": "sha256:" + sha256_bytes(data),
+    }
 
 
 def policy_items(policy: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
@@ -278,6 +455,81 @@ def validate_descriptor_metadata(value: Any, artifact_id: str) -> Dict[str, Any]
         if not isinstance(format_schema["digest"], str) or not SHA256_RE.fullmatch(format_schema["digest"]):
             die("approved artifact %s has invalid format schema digest" % artifact_id)
     return value
+
+
+def validate_license_info(value: Any, artifact_id: str, require_complete: bool) -> Dict[str, Any]:
+    base_fields = {"evidence_class", "review_status"}
+    complete_fields = base_fields | {
+        "license_expression", "copyright_status", "notice_status", "evidence_refs",
+    }
+    if not isinstance(value, dict) or not base_fields <= set(value) or set(value) - complete_fields:
+        die("artifact %s license has an invalid member set" % artifact_id)
+    evidence_class = value.get("evidence_class")
+    if not isinstance(evidence_class, str) or not evidence_class or evidence_class == "NOASSERTION":
+        die("artifact %s requires a reviewed license evidence class other than NOASSERTION" % artifact_id)
+    review_status = value.get("review_status")
+    if review_status not in {"pending-human-review", "reviewed", "reviewed-exception"}:
+        die("artifact %s has no valid license review status" % artifact_id)
+    if require_complete and set(value) != complete_fields:
+        die("approved artifact %s requires complete license evidence" % artifact_id)
+    if set(value) == base_fields:
+        return value
+    if set(value) != complete_fields:
+        die("artifact %s license evidence is incomplete" % artifact_id)
+    expression = value["license_expression"]
+    if not isinstance(expression, str) or not expression or "NOASSERTION" in expression.upper():
+        die("artifact %s requires a reviewed license expression other than NOASSERTION" % artifact_id)
+    if value["copyright_status"] not in COPYRIGHT_NOTICE_STATUSES:
+        die("artifact %s has no reviewed copyright status" % artifact_id)
+    if value["notice_status"] not in COPYRIGHT_NOTICE_STATUSES:
+        die("artifact %s has no reviewed notice status" % artifact_id)
+    refs = value["evidence_refs"]
+    if not isinstance(refs, list) or not refs:
+        die("artifact %s requires complete license evidence references" % artifact_id)
+    identities = []
+    roles = set()
+    for ref in refs:
+        if not isinstance(ref, dict) or set(ref) != {"role", "artifact_id", "content_digest"}:
+            die("artifact %s has an invalid license evidence reference" % artifact_id)
+        role = ref.get("role")
+        referenced_id = ref.get("artifact_id")
+        digest = ref.get("content_digest")
+        if role not in LICENSE_EVIDENCE_ROLES:
+            die("artifact %s has an unknown license evidence role" % artifact_id)
+        if not isinstance(referenced_id, str) or not re.fullmatch(r"[a-z0-9][a-z0-9.-]+", referenced_id):
+            die("artifact %s has an invalid license evidence artifact id" % artifact_id)
+        if not isinstance(digest, str) or not SHA256_RE.fullmatch(digest):
+            die("artifact %s has an invalid license evidence digest" % artifact_id)
+        identities.append((role, referenced_id, digest))
+        roles.add(role)
+    if identities != sorted(set(identities)):
+        die("artifact %s license evidence references must be sorted and unique" % artifact_id)
+    if review_status == "reviewed" and "license-text" not in roles:
+        die("reviewed artifact %s requires exact license-text evidence" % artifact_id)
+    if review_status == "reviewed-exception" and (
+        "review-record" not in roles or not roles.intersection({"license-text", "metadata"})
+    ):
+        die("reviewed exception %s requires metadata/license and review-record evidence" % artifact_id)
+    if value["copyright_status"] == "present" and "copyright" not in roles:
+        die("artifact %s requires copyright evidence" % artifact_id)
+    if value["notice_status"] == "present" and "notice" not in roles:
+        die("artifact %s requires notice evidence" % artifact_id)
+    return value
+
+
+def validate_license_references(policy: Dict[str, Any]) -> None:
+    """Bind every approved license/notice reference to an exact approved byte."""
+    items = {item["id"]: item for item in policy_items(policy)}
+    for item in items.values():
+        if item["admission_status"] != "approved-for-acquisition":
+            continue
+        for ref in item["license"]["evidence_refs"]:
+            target = items.get(ref["artifact_id"])
+            if target is None or target["admission_status"] != "approved-for-acquisition":
+                die("artifact %s license evidence is not an approved exact byte" % item["id"])
+            expected = target["acquisition"].get("expected")
+            if not isinstance(expected, dict) or ref["content_digest"] != "sha256:" + expected.get("sha256", ""):
+                die("artifact %s license evidence digest does not match its exact byte" % item["id"])
 
 
 def validate_policy(policy: Any) -> Dict[str, Any]:
@@ -380,20 +632,17 @@ def validate_policy(policy: Any) -> Dict[str, Any]:
             if not isinstance(url, str):
                 die("artifact %s acquisition.url must be a string or null" % identifier)
             validate_url(url, "artifact %s acquisition.url" % identifier)
-        license_info = item["license"]
-        if not isinstance(license_info, dict) or set(license_info) != {"evidence_class", "review_status"}:
-            die("artifact %s license must contain evidence_class and review_status" % identifier)
-        evidence_class = license_info.get("evidence_class")
-        if not isinstance(evidence_class, str) or not evidence_class or evidence_class == "NOASSERTION":
-            die("artifact %s requires a reviewed license evidence class other than NOASSERTION" % identifier)
-        if license_info.get("review_status") not in {"pending-human-review", "reviewed", "reviewed-exception"}:
-            die("artifact %s has no valid license review status" % identifier)
+        license_info = validate_license_info(
+            item["license"], identifier, item["admission_status"] == "approved-for-acquisition"
+        )
         if item["admission_status"] == "approved-for-acquisition" and license_info["review_status"] == "pending-human-review":
             die("approved artifact %s still has pending license review" % identifier)
         if item["distribution_mode"] not in {"source-only", "direct-upstream-pull", "host-installed", "manual-data-acquisition"}:
             die("artifact %s has an unapproved distribution mode" % identifier)
         if item["publication_disposition"] not in {"metadata-only", "do-not-publish", "private-only"}:
             die("artifact %s has an invalid publication disposition" % identifier)
+    if policy["policy_version"] == "phase0-exact-byte-v1":
+        validate_license_references(policy)
     return policy
 
 
@@ -437,19 +686,27 @@ def install_artifact_once(
     try:
         os.link(temporary, artifact_path)
     except FileExistsError:
-        ensure_private_file(root, artifact_path, "content-addressed artifact for %s" % item_id)
-        try:
-            existing_digest, existing_length = sha256_file(artifact_path)
-        except OSError as exc:
-            die("cannot read existing content-addressed artifact for %s: %s" % (item_id, type(exc).__name__))
+        existing_digest, existing_length = sha256_private_file(
+            root, artifact_path, "existing content-addressed artifact for %s" % item_id
+        )
         if existing_digest != observed or existing_length != length:
             die("content-addressed artifact collision for %s at sha256-%s" % (item_id, observed))
     else:
-        ensure_private_file(root, artifact_path, "content-addressed artifact for %s" % item_id)
-        source_info = os.fstat(source_descriptor)
-        installed_info = artifact_path.lstat()
-        if (installed_info.st_dev, installed_info.st_ino) != (source_info.st_dev, source_info.st_ino):
-            die("secure temporary artifact changed before installation for %s" % item_id)
+        installed_descriptor = open_private_file_descriptor(
+            root, artifact_path, "installed content-addressed artifact for %s" % item_id,
+            require_single_link=False,
+        )
+        try:
+            source_info = os.fstat(source_descriptor)
+            installed_info = os.fstat(installed_descriptor)
+            if (installed_info.st_dev, installed_info.st_ino) != (source_info.st_dev, source_info.st_ino):
+                die("secure temporary artifact changed before installation for %s" % item_id)
+            temporary.unlink()
+            if os.fstat(installed_descriptor).st_nlink != 1:
+                die("installed content-addressed artifact for %s has unexpected links" % item_id)
+        finally:
+            os.close(installed_descriptor)
+        return
     temporary.unlink()
 
 
@@ -620,10 +877,7 @@ def load_observations(root: Path, policy: Dict[str, Any]) -> List[Dict[str, Any]
         if item["admission_status"] != "approved-for-acquisition":
             continue
         path = root / "observations" / (item["id"] + ".json")
-        if not path.is_file():
-            die("missing approved acquisition observation: %s" % item["id"])
-        ensure_private_file(root, path, "acquisition observation for %s" % item["id"])
-        observed = load_json(path)
+        observed = load_private_json(root, path, "acquisition observation for %s" % item["id"])
         if not isinstance(observed, dict):
             die("acquisition observation must be an object for %s" % item["id"])
         expected = item["acquisition"]["expected"]
@@ -643,13 +897,9 @@ def load_observations(root: Path, policy: Dict[str, Any]) -> List[Dict[str, Any]
         if not isinstance(observed.get("content_type"), str):
             die("observation content_type is invalid for %s" % item["id"])
         artifact = root / "artifacts" / ("sha256-" + expected["sha256"])
-        if not artifact.is_file():
-            die("missing content-addressed artifact for %s" % item["id"])
-        ensure_private_file(root, artifact, "content-addressed artifact for %s" % item["id"])
-        try:
-            digest, length = sha256_file(artifact)
-        except OSError as exc:
-            die("cannot read content-addressed artifact for %s: %s" % (item["id"], type(exc).__name__))
+        digest, length = sha256_private_file(
+            root, artifact, "content-addressed artifact for %s" % item["id"]
+        )
         if digest != expected["sha256"] or length != expected["byte_length"]:
             die("content-addressed file does not match observation for %s" % item["id"])
         observations.append(observed)
@@ -664,8 +914,7 @@ def load_optional_records(root: Path, directory: str) -> List[Dict[str, Any]]:
         die("%s must be a directory when present" % records_path)
     records = []
     for path in sorted(records_path.glob("*.json")):
-        ensure_private_file(root, path, "%s record" % directory)
-        record = load_json(path)
+        record = load_private_json(root, path, "%s record" % directory)
         if not isinstance(record, dict):
             die("%s must contain JSON objects" % path)
         if directory == "failures":
@@ -808,6 +1057,7 @@ def seal(policy: Dict[str, Any], root: Path, schema: Path, source_commit: str) -
     ensure_private_directory(root)
     schema_definition = load_json(schema)
     schema_bytes = read_schema_bytes(schema)
+    environment_ref = load_host_baseline(root)
     observations = load_observations(root, policy)
     inventory = []
     for observation in observations:
@@ -844,6 +1094,7 @@ def seal(policy: Dict[str, Any], root: Path, schema: Path, source_commit: str) -
         "source_commit": source_commit,
         "policy_digest": "sha256:" + sha256_bytes(jcs_bytes(policy)),
         "source_decisions": source_decisions,
+        "environment_ref": environment_ref,
         "inventory": inventory,
         "failures": failures,
         "exclusions": exclusions,
@@ -860,8 +1111,12 @@ def seal(policy: Dict[str, Any], root: Path, schema: Path, source_commit: str) -
         "admission_scope": "base-and-primary-candidate-admission",
         "policy_digest": payload["policy_digest"],
         "input_ids": [row["artifact_id"] for row in inventory],
-        "environment": {"kind": "phase0-admission", "policy_digest": payload["policy_digest"]},
-        "outcome": "go-candidate-pending-human-approval",
+        "environment": {
+            "kind": "phase0-admission",
+            "policy_digest": payload["policy_digest"],
+            "host_baseline_ref": environment_ref,
+        },
+        "outcome": "pending-human-admission-review",
         "specification_refs": sorted(source["commit"] for source in source_decisions),
         "artifact_bindings": [{"role": "admitted-artifact", "artifact_address": row["artifact_descriptor"]["address"]} for row in inventory],
         "content_classification": "metadata-only",
@@ -906,10 +1161,14 @@ def validate_phase0_envelope(envelope: Any, payload: Dict[str, Any], expected_bi
         or envelope["evidence_profile"] != "phase0-admission"
         or envelope["admission_scope"] != "base-and-primary-candidate-admission"
         or envelope["policy_digest"] != payload["policy_digest"]
-        or envelope["outcome"] != "go-candidate-pending-human-approval"
+        or envelope["outcome"] != "pending-human-admission-review"
         or envelope["content_classification"] != "metadata-only"
         or envelope["publication_disposition"] != "private-only"
-        or envelope["environment"] != {"kind": "phase0-admission", "policy_digest": payload["policy_digest"]}
+        or envelope["environment"] != {
+            "kind": "phase0-admission",
+            "policy_digest": payload["policy_digest"],
+            "host_baseline_ref": payload["environment_ref"],
+        }
     ):
         die("evidence envelope violates the Phase 0 admission profile")
     expected_ids = [row["artifact_id"] for row in payload["inventory"]]
@@ -956,15 +1215,15 @@ def verify(root: Path, evidence_address: str, schema: Path, policy: Dict[str, An
     schema_definition = load_json(schema)
     schema_bytes = read_schema_bytes(schema)
     record = root / "records" / evidence_address.replace(":", "_")
-    ensure_private_file(root, record / "payload.json", "sealed payload")
-    ensure_private_file(root, record / "envelope.json", "sealed envelope")
-    payload = load_json(record / "payload.json")
-    envelope = load_json(record / "envelope.json")
+    payload = load_private_json(root, record / "payload.json", "sealed payload")
+    envelope = load_private_json(root, record / "envelope.json", "sealed envelope")
     if not isinstance(payload, dict):
         die("payload is invalid")
     if not isinstance(envelope, dict):
         die("evidence envelope is invalid")
     validate_lock_inventory_payload(payload, schema_definition)
+    if payload["environment_ref"] != load_host_baseline(root):
+        die("sealed host baseline does not match the retained machine evidence")
     if payload["payload_schema_digest"] != "sha256:" + sha256_bytes(schema_bytes):
         die("payload schema digest mismatch")
     expected_items = validate_payload_policy_binding(payload, policy)
@@ -1009,13 +1268,9 @@ def verify(root: Path, evidence_address: str, schema: Path, policy: Dict[str, An
             die("artifact descriptor address mismatch")
         expected_bindings.append({"role": "admitted-artifact", "artifact_address": calculated_descriptor["address"]})
         artifact = root / "artifacts" / ("sha256-" + observation["content_digest"].removeprefix("sha256:"))
-        if not artifact.is_file():
-            die("missing content-addressed artifact for %s" % row["artifact_id"])
-        ensure_private_file(root, artifact, "content-addressed artifact for %s" % row["artifact_id"])
-        try:
-            digest, length = sha256_file(artifact)
-        except OSError as exc:
-            die("cannot read content-addressed artifact for %s: %s" % (row["artifact_id"], type(exc).__name__))
+        digest, length = sha256_private_file(
+            root, artifact, "content-addressed artifact for %s" % row["artifact_id"]
+        )
         if "sha256:" + digest != observation["content_digest"] or length != observation["byte_length"]:
             die("content-addressed artifact does not match sealed inventory for %s" % row["artifact_id"])
     expected_bindings.sort(key=lambda row: (row["role"], row["artifact_address"]))
