@@ -476,7 +476,7 @@ class Phase0LockTests(unittest.TestCase):
             "artifact_id": "approved-byte",
             "occurred_at_utc": "2026-08-14T00:00:00Z",
             "stage": "prefetch",
-            "message": "admitted request did not complete byte verification",
+            "message": "candidate request did not complete byte verification",
             "content_classification": "metadata-only",
             "publication_disposition": "private-only",
         }
@@ -515,7 +515,7 @@ class Phase0LockTests(unittest.TestCase):
             "artifact_id": "approved-byte",
             "occurred_at_utc": "2026-08-14T00:00:00Z",
             "stage": "prefetch",
-            "message": "admitted request did not complete byte verification",
+            "message": "candidate request did not complete byte verification",
             "content_classification": "metadata-only",
             "publication_disposition": "private-only",
         }
@@ -648,7 +648,7 @@ class Phase0LockTests(unittest.TestCase):
             payload_path = record / "payload.json"
             original_payload = payload_path.read_text(encoding="utf-8")
             payload = json.loads(original_payload)
-            self.assertEqual(payload["failures"][0]["message"], "admitted request did not complete byte verification")
+            self.assertEqual(payload["failures"][0]["message"], "candidate request did not complete byte verification")
             self.assertEqual(
                 payload["reviewed_exceptions"],
                 [{"artifact_id": "exception-byte", "license": exception["license"]}],

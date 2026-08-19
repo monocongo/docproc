@@ -1075,7 +1075,7 @@ def install_artifact_once(
 
 
 def download_exact(item: Dict[str, Any], root: Path | PrivateRoot) -> Dict[str, Any]:
-    """Download one already-admitted URL, forbidding redirect and byte surprises."""
+    """Download one already-approved candidate URL, forbidding byte surprises."""
     acquisition = item["acquisition"]
     expected = acquisition["expected"]
     descriptor_metadata = acquisition["descriptor"]
@@ -1189,13 +1189,13 @@ def validate_closure(catalog: Dict[str, Any], exact_policy: Dict[str, Any]) -> N
 
 
 def record_prefetch_failure(root: Path | PrivateRoot, artifact_id: str) -> None:
-    """Retain a failed admitted request without retaining credential or local-path data."""
+    """Retain a failed candidate request without credential or local-path data."""
     failure = {
         "failure_version": "phase0-acquisition-failure-v1",
         "artifact_id": artifact_id,
         "occurred_at_utc": utc_now(),
         "stage": "prefetch",
-        "message": "admitted request did not complete byte verification",
+        "message": "candidate request did not complete byte verification",
         "content_classification": "metadata-only",
         "publication_disposition": "private-only",
     }

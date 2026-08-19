@@ -235,7 +235,7 @@
         "artifact_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+$"},
         "occurred_at_utc": {"type": "string", "pattern": ".*Z$"},
         "stage": {"const": "prefetch"},
-        "message": {"const": "admitted request did not complete byte verification"},
+        "message": {"const": "candidate request did not complete byte verification"},
         "content_classification": {"const": "metadata-only"},
         "publication_disposition": {"const": "private-only"}
       },
