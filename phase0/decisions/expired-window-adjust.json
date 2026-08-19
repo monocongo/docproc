@@ -5,6 +5,7 @@
   "record_status": "pending-human-non-authorizing-approval",
   "source_commit": "81d554ad5d153fff2b36753bca5e0da9ed0ff531",
   "produced_at_utc": "2026-08-19T15:05:41Z",
+  "record_updated_at_utc": "2026-08-19T15:11:07Z",
   "authorization": {
     "prior_comment_id": 5227376778,
     "prior_comment_url": "https://github.com/monocongo/docproc/issues/13#issuecomment-5227376778",
@@ -51,9 +52,27 @@
   "tracker_reconciliation": {
     "issue_20": {
       "status": "open-unresolved-hard-prerequisite",
-      "reopened_at_utc": "2026-08-19T15:00:13Z",
       "not_resolved_comment_url": "https://github.com/monocongo/docproc/issues/20#issuecomment-5229146843",
-      "tracker_correction_comment_url": "https://github.com/monocongo/docproc/issues/20#issuecomment-5343953722"
+      "closure_events": [
+        {
+          "event": "closed-without-acceptance-evidence",
+          "at_utc": "2026-08-09T07:14:35Z"
+        },
+        {
+          "event": "reopened-tracker-correction",
+          "at_utc": "2026-08-19T15:00:13Z",
+          "comment_url": "https://github.com/monocongo/docproc/issues/20#issuecomment-5343953722"
+        },
+        {
+          "event": "auto-closed-by-pr-27-merge-without-acceptance-evidence",
+          "at_utc": "2026-08-19T15:00:46Z"
+        },
+        {
+          "event": "reopened-second-tracker-correction",
+          "at_utc": "2026-08-19T15:10:58Z",
+          "comment_url": "https://github.com/monocongo/docproc/issues/20#issuecomment-5344087081"
+        }
+      ]
     },
     "pr_26": {
       "status": "merged-harness-only",
@@ -98,7 +117,8 @@
             "AUTH-PRIOR",
             "CONTRACT-BASE",
             "ISSUE-20-NOT-RESOLVED",
-            "PR-27-MERGE"
+            "PR-27-MERGE",
+            "ISSUE-20-SECOND-TRACKER-CORRECTION"
           ]
         },
         {
@@ -110,7 +130,8 @@
             "AUTH-PRIOR",
             "CONTRACT-BASE",
             "ISSUE-20-NOT-RESOLVED",
-            "PR-27-MERGE"
+            "PR-27-MERGE",
+            "ISSUE-20-SECOND-TRACKER-CORRECTION"
           ]
         },
         {
@@ -122,7 +143,8 @@
             "AUTH-PRIOR",
             "CONTRACT-BASE",
             "ISSUE-20-NOT-RESOLVED",
-            "PR-27-MERGE"
+            "PR-27-MERGE",
+            "ISSUE-20-SECOND-TRACKER-CORRECTION"
           ]
         },
         {
@@ -134,7 +156,8 @@
             "AUTH-PRIOR",
             "CONTRACT-BASE",
             "ISSUE-20-NOT-RESOLVED",
-            "PR-27-MERGE"
+            "PR-27-MERGE",
+            "ISSUE-20-SECOND-TRACKER-CORRECTION"
           ]
         },
         {
@@ -146,7 +169,8 @@
             "AUTH-PRIOR",
             "CONTRACT-BASE",
             "ISSUE-20-NOT-RESOLVED",
-            "PR-27-MERGE"
+            "PR-27-MERGE",
+            "ISSUE-20-SECOND-TRACKER-CORRECTION"
           ]
         },
         {
@@ -158,7 +182,8 @@
             "AUTH-PRIOR",
             "CONTRACT-BASE",
             "ISSUE-20-NOT-RESOLVED",
-            "PR-27-MERGE"
+            "PR-27-MERGE",
+            "ISSUE-20-SECOND-TRACKER-CORRECTION"
           ]
         }
       ],
@@ -166,7 +191,8 @@
         "AUTH-PRIOR",
         "CONTRACT-BASE",
         "ISSUE-20-NOT-RESOLVED",
-        "PR-27-MERGE"
+        "PR-27-MERGE",
+        "ISSUE-20-SECOND-TRACKER-CORRECTION"
       ]
     },
     {
@@ -562,6 +588,7 @@
     "CONTRACT-BASE": "https://github.com/monocongo/docproc/blob/d5e0f3dfca08f6bc11ad02a6ee275aef0e43b2f9/docs/decisions/phase-0-go-adjust-cut-gate.md",
     "ISSUE-20-NOT-RESOLVED": "https://github.com/monocongo/docproc/issues/20#issuecomment-5229146843",
     "ISSUE-20-TRACKER-CORRECTION": "https://github.com/monocongo/docproc/issues/20#issuecomment-5343953722",
+    "ISSUE-20-SECOND-TRACKER-CORRECTION": "https://github.com/monocongo/docproc/issues/20#issuecomment-5344087081",
     "ISSUE-21": "https://github.com/monocongo/docproc/issues/21",
     "ISSUE-22": "https://github.com/monocongo/docproc/issues/22",
     "ISSUE-23": "https://github.com/monocongo/docproc/issues/23",
