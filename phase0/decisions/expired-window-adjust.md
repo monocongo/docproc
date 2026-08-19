@@ -20,7 +20,7 @@ No accepted exact-byte closure, SBOM/notices reconciliation, NAF corpus verifica
 
 Issue #20 was closed despite its [explicit “not resolved” comment](https://github.com/monocongo/docproc/issues/20#issuecomment-5229146843). It was [reopened as a tracker correction](https://github.com/monocongo/docproc/issues/20#issuecomment-5343953722) and remains the hard prerequisite for #21.
 
-PR #26 and merged PR #27 (`7046d540c5ffbe2181f67f1fc3a8a2616add7265`, merge `81d554ad5d153fff2b36753bca5e0da9ed0ff531`) are fail-closed harness cleanup only. They are not artifact admission or Gate LIC evidence. PR #27's PF wrapper refuses every measured command rather than claim incomplete egress denial.
+PR #26 and merged PR #27 (`7046d540c5ffbe2181f67f1fc3a8a2616add7265`, merge `81d554ad5d153fff2b36753bca5e0da9ed0ff531`) are fail-closed harness cleanup only. They are not artifact admission or Gate LIC evidence. PR #27's PF wrapper refuses every measured command rather than claiming incomplete egress denial.
 
 ## Gate outcomes
 
