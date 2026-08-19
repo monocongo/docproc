@@ -1,6 +1,6 @@
 # Local PDF-processing pipeline blueprint
 
-- **Status:** Proposed; implementation is not authorized by this document.
+- **Status:** Proposed recovery revision; implementation is not authorized by this document and the prior Phase 0 window is expired.
 - **Scope:** One local, single-worker PDF-processing walking vertical and its later hardening boundaries.
 - **Decision baseline:** The commit-pinned sources below. This blueprint is the sole implementation specification; it is not a development diary.
 
@@ -8,7 +8,7 @@
 
 The target is a locally operated path from one synthetic PDF to retained, inspectable typed extraction results. It uses MinIO, SQLite, Docling, host Ollama, OpenSearch, and Streamlit only if the separately authorized Phase 0 evidence work reaches an Overall Go.
 
-This blueprint does not authorize implementation, corpus/model acquisition, external publication, an Implementation-authorization/T0 comment, or a merge. It does not add queues, PostgreSQL, Kubernetes, EKS, AWS services, hosted inference, a second worker, a second database, or distribution infrastructure. Later hardening and public evaluation are requirements for later phases, not prerequisites silently folded into the walking vertical.
+This blueprint does not authorize implementation, corpus/model acquisition, external publication, an Implementation-authorization/T0 comment, or a merge. The authorization created by issue #13 comment `5227376778` reached its `T0 + 48h` deadline on `2026-08-10T17:54:45Z` without a complete Phase 0 decision and cannot authorize resumed work. The proposed [expired-window recovery contract at `54ca7ee5f5b40c208cd53171113ddd06b5b5e454`](https://github.com/monocongo/docproc/blob/54ca7ee5f5b40c208cd53171113ddd06b5b5e454/docs/decisions/phase-0-recovery-contract.md) becomes accepted Decision evidence only after the required human non-authorizing approval; a later human authorization must explicitly supersede the old comment. This blueprint does not add queues, PostgreSQL, Kubernetes, EKS, AWS services, hosted inference, a second worker, a second database, or distribution infrastructure. Later hardening and public evaluation are requirements for later phases, not prerequisites silently folded into the walking vertical.
 
 `schema-valid`, `evidence-grounded`, and `evaluated accuracy` are separate results. Neither a valid schema nor cited evidence establishes evaluated accuracy, and no quality aggregate substitutes for them.
 
@@ -24,6 +24,7 @@ Each `SRC-*` below is a full-SHA-pinned artifact. `SRC-PLAN` is reconciliation i
 | `SRC-WALK` | [Walking-vertical acceptance](https://github.com/monocongo/docproc/blob/a5e4205b597b70f15c2ce73421d361a0f0e2b799/docs/decisions/walking-vertical-acceptance.md) | T0, seven-day target, actual-component scenario, basic tests, and later boundary. |
 | `SRC-EVOLVE` | [Local-to-distributed evolution](https://github.com/monocongo/docproc/blob/2006944aec59b5052e00192bc5844f986a55b5f7/docs/decisions/local-to-distributed-evolution.md) | Identity, records, claims, cache reservation, adapters, and absent distributed systems. |
 | `SRC-P0` | [Phase 0 go-adjust-cut gate](https://github.com/monocongo/docproc/blob/d5e0f3dfca08f6bc11ad02a6ee275aef0e43b2f9/docs/decisions/phase-0-go-adjust-cut-gate.md) | Six gates, validity, precedence, authorization, and decision record. |
+| `SRC-P0-RECOVERY` | [Expired-window recovery contract candidate](https://github.com/monocongo/docproc/blob/54ca7ee5f5b40c208cd53171113ddd06b5b5e454/docs/decisions/phase-0-recovery-contract.md) | Expired authorization reset, #20/#21 NAF ownership, and host/descendant/container no-egress boundary; effective only after human approval. |
 | `SRC-LICENSE` | [Artifact and licensing gates](https://github.com/monocongo/docproc/blob/a6a0ce8014391d7956801154a39b8061fa8940f8/docs/research/dependency-artifact-licensing-gates.md) | Lock, inventory, notices, SBOM, offline, and distribution requirements. |
 | `SRC-NAF` | [Open-form corpus research](https://github.com/monocongo/docproc/blob/532b1fb1f9b948510e4296dad4c9fe3092d2681e/docs/research/open-real-form-evaluation-corpus.md) | `NAF-linked-v3` facts and limits. |
 | `SRC-FUNSD` | [FUNSD research](https://github.com/monocongo/docproc/blob/093a663bdd6fa419ac2931c88ad1b9e5cda0da78/docs/research/funsd-corpus-assumptions.md) | Omission rationale and stale-license correction. |
@@ -42,7 +43,7 @@ Each `SRC-*` below is a full-SHA-pinned artifact. `SRC-PLAN` is reconciliation i
 - A **candidate model** is not a **selected model**. A **walking vertical** is the intended system; a **walking-vertical acceptance run** is its future actual-component observation.
 - A **Selection gate** resolves a contract criterion. A **valid measurement** follows the frozen contract. **Go**, **Adjust**, **Cut**, **Overall Phase 0 outcome**, **Implementation authorization**, and **T0** have the meanings in `SRC-P0` and `SRC-WALK`.
 
-Actual-component Phase 0 and walking execution are future Conformance work. They are not evidence produced by this blueprint. T0 begins only with the separately authorized, exact Implementation-authorization form specified by `SRC-P0`/`SRC-WALK`; a review note, approval request, or ordinary issue/PR comment does not start it.
+Actual-component Phase 0 and walking execution are future Conformance work. They are not evidence produced by this blueprint. A new T0 begins only with a new, unedited human Implementation-authorization comment that links the exact recovery contract and revised blueprint commits, links and explicitly supersedes comment `5227376778`, and declares itself the sole active authorization. A review note, approval request, expired-window approval, agent comment, ordinary issue/PR comment, or merge does not start it.
 
 ## Required local topology
 
@@ -69,10 +70,11 @@ IDs use `REQ-<FAMILY>-<NNN>`. Each requirement has one observable subject; chang
 | `REQ-DOMAIN-001` | The system MUST use the `docproc-identity-v1` framing and distinguish Source object, Document, Processing request, Processing run, Stage attempt, and Work claim. |
 | `REQ-DOMAIN-002` | A Processing definition MUST be immutable and versioned canonical records MUST preserve the identity relationships it governs. |
 | `REQ-ART-001` | Artifact writes MUST be create-if-absent and metadata success MUST follow version-pinned readback and digest verification. |
-| `REQ-ART-002` | Measured runs MUST use exact acquired artifacts and deny external network access after observed prefetch. |
+| `REQ-ART-002` | Measured runs MUST use exact acquired artifacts, bind an independently reviewed acquisition receipt, and deny external network access after observed prefetch through the hardware-isolated boundary that covers the host, descendants, and Docker containers. |
 | `REQ-CORPUS-001` | Ordinary CI and clean-clone acceptance MUST be deterministic, synthetic-only, and offline. |
 | `REQ-CORPUS-002` | The only public accuracy benchmark MUST be `NAF-linked-v3` under its pinned profile, split, eligibility, scoring, and publication rules. |
 | `REQ-CORPUS-003` | FUNSD MUST be absent from acquisition, CI, evaluation, screenshots, reports, fallback paths, and Git content. |
+| `REQ-CORPUS-004` | Issue #20 MUST admit only non-content-bearing NAF source/terms and expected identities; issue #21 exclusively owns NAF annotation/archive/content acquisition and observed corpus identities. |
 | `REQ-PARSER-001` | Phase 0 parser conformance MUST use Docling only with full-page RapidOCR/ONNX and no automatic OCR, Marker, or Surya. |
 | `REQ-PARSER-002` | Parser conformance MUST enforce its owned hard gates and a 300-second-per-document limit without inventing a word-recall threshold. |
 | `REQ-VLM-001` | Phase 0 MUST measure only the exact `qwen3.5:9b-q4_K_M` host-Ollama candidate under the frozen request, matrix, artifact, provenance, resource, schema, evidence, and report contracts. |
@@ -84,7 +86,7 @@ IDs use `REQ-<FAMILY>-<NNN>`. Each requirement has one observable subject; chang
 | `REQ-BOUNDARY-001` | Parser, VLM, storage, repository, search, and UI boundaries MUST exchange typed, versioned records and Artifact references without infrastructure identities escaping adapters. |
 | `REQ-P0-001` | Before Overall Phase 0 Go, work MUST be limited to bounded evidence and MUST NOT create durable application implementation. |
 | `REQ-P0-002` | Phase 0 MUST resolve LIC, CORPUS, PARSER, VLM, MACHINE, and WALK with `Cut > Adjust > Go` precedence and retain invalid measurements. |
-| `REQ-P0-003` | Phase 0 MUST complete its decision record by `T0 + 48 hours`; authorization semantics MUST be sole and superseding as defined by `SRC-P0`. |
+| `REQ-P0-003` | Phase 0 MUST complete its decision record by `T0 + 48 hours`; after expiry, work MUST stop until a new unedited human authorization links the recovery contract and explicitly supersedes the prior authorization. |
 | `REQ-WALK-001` | Walking acceptance MUST execute the committed one-page synthetic scenario through every required local component and retain non-empty schema-valid result, evidence, and metrics. |
 | `REQ-WALK-002` | Walking acceptance MUST demonstrate duplicate cached processing, fresh-process readback, basic offline tests, and an immutable acceptance record. |
 | `REQ-EVIDENCE-001` | Every expected Conformance item MUST have an immutable machine record and human summary containing exact inputs, environment, outcomes, failures, exclusions, decision sources, and specification IDs. |
@@ -104,9 +106,10 @@ IDs use `AC-<FAMILY>-<NNN>`; every ID in this table cites exact requirement IDs.
 | `AC-SCOPE-004` | `REQ-SCOPE-005` | Resolved walking service configuration and listener inspection show localhost-only bindings. |
 | `AC-DOMAIN-001` | `REQ-DOMAIN-001`, `REQ-DOMAIN-002` | Canonical records and identity vectors distinguish each defined entity and reject a changed Processing definition as compatible reuse. |
 | `AC-ART-001` | `REQ-ART-001` | An Artifact write/readback exposes exact version and digest before metadata success. |
-| `AC-ART-002` | `REQ-ART-002` | Observed prefetch rejects every unlisted request/artifact, and locked parser and VLM measured reruns record zero external requests under enforced egress denial. |
+| `AC-ART-002` | `REQ-ART-002` | Observed prefetch rejects every unlisted request/artifact, binds an independent receipt, and locked parser/VLM reruns plus host-descendant and every-used-Docker-network probes record zero external requests under the retained hardware boundary. |
 | `AC-CORPUS-001` | `REQ-CORPUS-001`, `REQ-CORPUS-003` | The repository/CI content scan finds only cleared synthetic fixtures and no FUNSD material or dependency path. |
 | `AC-CORPUS-002` | `REQ-CORPUS-002` | NAF acquisition, eligibility ledger, ignored-edge semantics, hand-computed scorer cases, and 77-page accounting reproduce the frozen profile. |
+| `AC-CORPUS-003` | `REQ-CORPUS-004` | #20 evidence contains only source/terms and expected policy identities with `NAF content acquisition: deferred to #21; not observed`; #21 evidence alone contains observed NAF content identities. |
 | `AC-PARSER-001` | `REQ-PARSER-001`, `REQ-PARSER-002` | A fixed Docling manifest records full-page OCR configuration, all hard-gate outcomes, timeout, telemetry, outputs, and failures. |
 | `AC-VLM-001` | `REQ-VLM-001` | The frozen candidate matrix preserves request/repair/raw/schema/evidence/accuracy/resource/health results and distinguishes invalid measurements. |
 | `AC-VLM-002` | `REQ-VLM-002` | A fallback is observable only after the named trigger and fresh candidate-level artifact admission; any other fallback attempt is rejected. |
@@ -131,7 +134,8 @@ IDs use `TEST-<KIND>-<NNN>`, where `KIND` is `UNIT`, `SCHEMA`, `CONTRACT`, `INTE
 | `TEST-CONTRACT-007` | `AC-SCOPE-003` | Repository `LICENSE` and operative blueprint license assertions. | Both identify MIT and contain no conflicting operative license; offline; `EVID-TEST-REPORT-005`. |
 | `TEST-CONTRACT-008` | `AC-CORPUS-001` | Clean clone, ordinary-CI selection, and repository content/dependency scan. | Only cleared synthetic fixtures are used; FUNSD and restricted corpus material are absent; offline; `EVID-TEST-REPORT-006`. |
 | `TEST-CONTRACT-009` | `AC-LATER-001` | Repository configuration, import, and dependency scan before a later initiative. | No queue/PostgreSQL/Kubernetes/EKS/AWS path exists and the full benchmark remains post-walking; offline; `EVID-TEST-REPORT-007`. |
-| `TEST-CONTRACT-010` | `AC-ART-002` | Observed prefetch followed by locked parser and VLM measured reruns with egress enforcement. | Every unlisted request/artifact is rejected; both reruns make zero external requests; authorized Phase 0; `EVID-LOCK-INVENTORY-001`. |
+| `TEST-CONTRACT-010` | `AC-ART-002` | Observed prefetch followed by host/descendant/container denial preflight and locked parser/VLM reruns inside the reviewed hardware-isolated boundary. | Independent receipt matches; direct IPv4, IPv6, DNS, and HTTPS fail in every domain; required local health succeeds; no external packet/counter escape occurs; authorized Phase 0; `EVID-LOCK-INVENTORY-001`. |
+| `TEST-CONTRACT-011` | `AC-CORPUS-003` | Synthetic policies and evidence envelopes exercise #20 admission and #21 acquisition ownership. | #20 rejects NAF content observations and #21 rejects acquisition without accepted #20 source/terms admission; offline synthetic test; `EVID-TEST-REPORT-012`. |
 | `TEST-CONTRACT-002` | `AC-BOUNDARY-001` | Adapter contracts and import graph. | No infrastructure/local-path/process identity crosses a boundary; offline; `EVID-TEST-REPORT-008`. |
 | `TEST-INTEGRATION-001` | `AC-STORE-001` | Claim/cache races and crash windows against actual local stores. | Fencing, deterministic replay, and rebuildable Projection; authorized local service run; `EVID-TEST-REPORT-009`. |
 | `TEST-SCHEMA-001` | `AC-RUN-001` | Valid, invalid, and repaired extraction records across admitted pages. | Invalid final output cannot succeed; every page is accounted for; offline; `EVID-TEST-REPORT-010`. |
@@ -191,6 +195,7 @@ References are full commit SHAs or exact Artifact version-plus-digest, never bra
 | `EVID-TEST-REPORT-009` / `test-report` | Claim/cache/crash/Projection integration check. |
 | `EVID-TEST-REPORT-010` / `test-report` | Page accounting and final-schema check. |
 | `EVID-TEST-REPORT-011` / `test-report` | Evidence-envelope and publication-safety rubric. |
+| `EVID-TEST-REPORT-012` / `test-report` | Synthetic #20 source/terms-admission versus #21 content-acquisition ownership contract. |
 | `EVID-PUBLIC-BENCHMARK-001` / `public-benchmark` | NAF 77-page profile/accounting, strict ignored-edge behavior, configuration, metrics, exclusions, and caveats. |
 | `EVID-DISTRIBUTION-REVIEW-001` / `distribution-review` | A later workload/SLO/security/licensing/migration decision and its failure evidence. |
 
@@ -198,20 +203,20 @@ Git may contain project-authored/cleared synthetic fixtures, schemas, non-conten
 
 ## Phase 0 boundary and stop points
 
-The sole future Implementation authorization is the new, unedited issue #13 comment defined by `SRC-WALK`. It starts T0, permits bounded evidence work immediately, and conditionally permits durable walking work only after Overall Phase 0 Go. This blueprint does not create that authorization.
+No active authorization currently permits Phase 0 acquisition or measurement. The next authorization must be a new, unedited human issue #13 comment that links the exact merged recovery contract and revised blueprint, explicitly supersedes comment `5227376778`, and declares itself the sole active Implementation authorization. Its GitHub `createdAt` starts the new T0, permits bounded evidence work immediately, and conditionally permits durable walking work only after Overall Phase 0 Go. This blueprint and the required non-authorizing expired-window approval do not create that authorization.
 
 Before Overall Go, freeze component/artifact/corpus/prompt/schema/scoring/measurement contracts; explicitly acquire approved exact artifacts outside Git; run conformance evidence; and retain the decision record. Do not implement durable MinIO discovery, SQLite orchestration, production Docling/VLM stages, pipeline Artifact storage, OpenSearch indexing, Streamlit views, queues, distributed systems, or AWS/Kubernetes work.
 
 | Gate | Required result and stop point |
 |---|---|
-| LIC | Admit exact artifacts, lock/inventory/SBOM/notices, and offline reproducibility. Unknown or forbidden terms, mismatches, surprise downloads, or impermissible distribution cut the affected component. |
-| CORPUS | Reproduce `NAF-linked-v3`, the eligibility ledger, scorer, and 683 eligible pairs on 56 of 77 test pages without candidate evaluation on the test split. A profile/license/scorer failure is Adjust or Cut as `SRC-P0` defines. |
+| LIC | Admit exact base/primary artifacts, lock/inventory/SBOM/notices, and offline reproducibility. For NAF, #20 admits only non-content-bearing source/terms and expected identities; content acquisition is deferred to #21 and must not be observed or invented in #20. Unknown or forbidden terms, mismatches, surprise downloads, or impermissible distribution cut the affected component. |
+| CORPUS | Under #21 ownership, acquire and reproduce `NAF-linked-v3`, the eligibility ledger, scorer, and 683 eligible pairs on 56 of 77 test pages without candidate evaluation on the test split. A profile/license/scorer failure is Adjust or Cut as `SRC-P0` defines. |
 | PARSER | Run Docling-only `parser-conformance-v1` with full-page RapidOCR/ONNX, offline, within 300 seconds per document. A valid owned hard-gate failure is Adjust; no challenger is automatically downloaded. |
 | VLM | Run the exact `SRC-VLM` matrix and gates A/M/L/C/S/E/R. The only fallbacks are the named routes; low accuracy, preference, and unmeasured concern do not authorize a fallback. |
 | MACHINE | Measure M5 local coexistence and resource telemetry with the required services. No service removal, context reduction, or threshold change is a silent remedy. |
 | WALK | Preserve every non-cuttable walking component/test and complete the decision record by `T0 + 48h`; failure to do so is Adjust unless Cut already prevails. |
 
-Record one final outcome per gate in the fixed `LIC → CORPUS → PARSER → VLM → MACHINE → final LIC reconciliation → WALK` algorithm, including allowed internal fallback routing. Overall Cut stops the current implementation; Overall Adjust stops dependent work, revises the necessary contract, and reruns affected/downstream evidence. Overall Go satisfies the condition for the already-authorized walking scope but does not authorize later hardening, benchmark, or distribution work.
+Record one final outcome per gate in the fixed `LIC → CORPUS → PARSER → VLM → MACHINE → final LIC reconciliation → WALK` algorithm, including allowed internal fallback routing. Overall Cut stops the current implementation; Overall Adjust stops dependent work, revises the necessary contract, and reruns affected/downstream evidence. Under a then-active superseding authorization, Overall Go satisfies its condition for the walking scope but does not authorize later hardening, benchmark, or distribution work; while no authorization is active, no outcome starts implementation.
 
 ### Frozen VLM fallback routing
 
@@ -264,10 +269,11 @@ There is one row for each normative requirement. A row names Decision evidence, 
 | `REQ-DOMAIN-001` | `SRC-EVOLVE` | `AC-DOMAIN-001` | `TEST-UNIT-001` | `EVID-TEST-REPORT-001` / `test-report` | walking |
 | `REQ-DOMAIN-002` | `SRC-EVOLVE` | `AC-DOMAIN-001` | `TEST-UNIT-001` | `EVID-TEST-REPORT-001` / `test-report` | walking |
 | `REQ-ART-001` | `SRC-EVOLVE`, `SRC-LICENSE` | `AC-ART-001` | `TEST-CONTRACT-001` | `EVID-TEST-REPORT-002` / `test-report` | Phase 0/walking |
-| `REQ-ART-002` | `SRC-LICENSE`, `SRC-P0` | `AC-ART-002` | `TEST-CONTRACT-010` | `EVID-LOCK-INVENTORY-001` / `lock-inventory` | Phase 0 |
+| `REQ-ART-002` | `SRC-LICENSE`, `SRC-P0`, `SRC-P0-RECOVERY` | `AC-ART-002` | `TEST-CONTRACT-010` | `EVID-LOCK-INVENTORY-001` / `lock-inventory` | Phase 0 |
 | `REQ-CORPUS-001` | `SRC-CORPUS`, `SRC-LICENSE` | `AC-CORPUS-001` | `TEST-CONTRACT-008` | `EVID-TEST-REPORT-006` / `test-report` | walking/later |
 | `REQ-CORPUS-002` | `SRC-CORPUS`, `SRC-NAF` | `AC-CORPUS-002` | `TEST-GOLDEN-001`, `TEST-BENCH-001` | `EVID-CORPUS-VERIFICATION-001` / `corpus-verification`; `EVID-PUBLIC-BENCHMARK-001` / `public-benchmark` | Phase 0/later |
 | `REQ-CORPUS-003` | `SRC-CORPUS`, `SRC-FUNSD` | `AC-CORPUS-001` | `TEST-CONTRACT-008` | `EVID-TEST-REPORT-006` / `test-report` | walking/later |
+| `REQ-CORPUS-004` | `SRC-P0-RECOVERY`, `SRC-CORPUS`, `SRC-NAF` | `AC-CORPUS-003` | `TEST-CONTRACT-011` | `EVID-TEST-REPORT-012` / `test-report`; `EVID-LOCK-INVENTORY-001` / `lock-inventory`; `EVID-CORPUS-VERIFICATION-001` / `corpus-verification` | Phase 0 |
 | `REQ-PARSER-001` | `SRC-WALK`, `SRC-PARSER`, `SRC-LICENSE` | `AC-PARSER-001` | `TEST-CONTRACT-003` | `EVID-PARSER-CONFORMANCE-001` / `parser-conformance` | Phase 0 |
 | `REQ-PARSER-002` | `SRC-P0`, `SRC-PARSER` | `AC-PARSER-001` | `TEST-CONTRACT-003` | `EVID-PARSER-CONFORMANCE-001` / `parser-conformance` | Phase 0 |
 | `REQ-VLM-001` | `SRC-VLM`, `SRC-P0`, `SRC-VLM-RESEARCH` | `AC-VLM-001` | `TEST-CONTRACT-004` | `EVID-VLM-CONFORMANCE-001` / `vlm-conformance` | Phase 0 |
@@ -279,7 +285,7 @@ There is one row for each normative requirement. A row names Decision evidence, 
 | `REQ-BOUNDARY-001` | `SRC-EVOLVE` | `AC-BOUNDARY-001` | `TEST-CONTRACT-002` | `EVID-TEST-REPORT-008` / `test-report` | walking |
 | `REQ-P0-001` | `SRC-P0`, `SRC-WALK` | `AC-P0-001` | `TEST-INTEGRATION-002` | `EVID-PHASE0-DECISION-001` / `phase0-decision` | Phase 0 |
 | `REQ-P0-002` | `SRC-P0` | `AC-P0-001` | `TEST-INTEGRATION-002` | `EVID-PHASE0-DECISION-001` / `phase0-decision` | Phase 0 |
-| `REQ-P0-003` | `SRC-P0`, `SRC-WALK` | `AC-P0-001` | `TEST-INTEGRATION-002` | `EVID-PHASE0-DECISION-001` / `phase0-decision` | Phase 0 |
+| `REQ-P0-003` | `SRC-P0`, `SRC-P0-RECOVERY`, `SRC-WALK` | `AC-P0-001` | `TEST-INTEGRATION-002` | `EVID-PHASE0-DECISION-001` / `phase0-decision` | Phase 0 |
 | `REQ-WALK-001` | `SRC-WALK`, `SRC-P0` | `AC-WALK-001` | `TEST-E2E-001` | `EVID-WALKING-VERTICAL-001` / `walking-vertical` | walking |
 | `REQ-WALK-002` | `SRC-WALK`, `SRC-EVOLVE` | `AC-WALK-001` | `TEST-E2E-002` | `EVID-WALKING-VERTICAL-001` / `walking-vertical` | walking |
 | `REQ-EVIDENCE-001` | `SRC-TRACE`, `SRC-P0` | `AC-EVIDENCE-001` | `TEST-MANUAL-001` | `EVID-TEST-REPORT-011` / `test-report` | Phase 0/walking/later |

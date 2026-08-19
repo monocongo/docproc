@@ -1,0 +1,599 @@
+{
+  "decision_schema_version": "phase0-decision-v1",
+  "evidence_id": "EVID-PHASE0-DECISION-001",
+  "record_kind": "phase0-decision",
+  "record_status": "pending-human-non-authorizing-approval",
+  "source_commit": "81d554ad5d153fff2b36753bca5e0da9ed0ff531",
+  "produced_at_utc": "2026-08-19T15:05:41Z",
+  "record_updated_at_utc": "2026-08-19T15:11:07Z",
+  "authorization": {
+    "prior_comment_id": 5227376778,
+    "prior_comment_url": "https://github.com/monocongo/docproc/issues/13#issuecomment-5227376778",
+    "prior_t0_utc": "2026-08-08T17:54:45Z",
+    "prior_deadline_utc": "2026-08-10T17:54:45Z",
+    "status": "expired-requires-superseding-authorization",
+    "superseding_comment": null,
+    "new_t0_utc": null
+  },
+  "phase0_interval": {
+    "start_utc": "2026-08-08T17:54:45Z",
+    "decision_due_utc": "2026-08-10T17:54:45Z",
+    "expiry_recorded_utc": "2026-08-19T15:05:41Z",
+    "monotonic_interval_status": "not-retained",
+    "monotonic_interval_reason": "phase0-window-expired-before-resolution"
+  },
+  "authoritative_sources": [
+    {
+      "id": "SRC-BLUEPRINT",
+      "commit": "367454a103c55a5d5a363b5be26cc43033cc2623",
+      "url": "https://github.com/monocongo/docproc/blob/367454a103c55a5d5a363b5be26cc43033cc2623/docs/planning/pdf-processing-pipeline-plan.md"
+    },
+    {
+      "id": "SRC-P0",
+      "commit": "d5e0f3dfca08f6bc11ad02a6ee275aef0e43b2f9",
+      "url": "https://github.com/monocongo/docproc/blob/d5e0f3dfca08f6bc11ad02a6ee275aef0e43b2f9/docs/decisions/phase-0-go-adjust-cut-gate.md"
+    },
+    {
+      "id": "SRC-LICENSE",
+      "commit": "a6a0ce8014391d7956801154a39b8061fa8940f8",
+      "url": "https://github.com/monocongo/docproc/blob/a6a0ce8014391d7956801154a39b8061fa8940f8/docs/research/dependency-artifact-licensing-gates.md"
+    },
+    {
+      "id": "SRC-NAF",
+      "commit": "532b1fb1f9b948510e4296dad4c9fe3092d2681e",
+      "url": "https://github.com/monocongo/docproc/blob/532b1fb1f9b948510e4296dad4c9fe3092d2681e/docs/research/open-real-form-evaluation-corpus.md"
+    },
+    {
+      "id": "SRC-CORPUS",
+      "commit": "4c1714d372a89d2ee99373a2bccbd33c6cd66e9c",
+      "url": "https://github.com/monocongo/docproc/blob/4c1714d372a89d2ee99373a2bccbd33c6cd66e9c/docs/adr/0001-public-evaluation-corpus.md"
+    }
+  ],
+  "tracker_reconciliation": {
+    "issue_20": {
+      "status": "open-unresolved-hard-prerequisite",
+      "not_resolved_comment_url": "https://github.com/monocongo/docproc/issues/20#issuecomment-5229146843",
+      "closure_events": [
+        {
+          "event": "closed-without-acceptance-evidence",
+          "at_utc": "2026-08-09T07:14:35Z"
+        },
+        {
+          "event": "reopened-tracker-correction",
+          "at_utc": "2026-08-19T15:00:13Z",
+          "comment_url": "https://github.com/monocongo/docproc/issues/20#issuecomment-5343953722"
+        },
+        {
+          "event": "auto-closed-by-pr-27-merge-without-acceptance-evidence",
+          "at_utc": "2026-08-19T15:00:46Z"
+        },
+        {
+          "event": "reopened-second-tracker-correction",
+          "at_utc": "2026-08-19T15:10:58Z",
+          "comment_url": "https://github.com/monocongo/docproc/issues/20#issuecomment-5344087081"
+        }
+      ]
+    },
+    "pr_26": {
+      "status": "merged-harness-only",
+      "admission_evidence": false
+    },
+    "pr_27": {
+      "status": "merged-harness-only",
+      "head_commit": "7046d540c5ffbe2181f67f1fc3a8a2616add7265",
+      "merge_commit": "81d554ad5d153fff2b36753bca5e0da9ed0ff531",
+      "admission_evidence": false
+    }
+  },
+  "environment": {
+    "status": "not-retained-as-accepted-phase0-evidence",
+    "hardware": "not-demonstrated",
+    "operating_system": "not-demonstrated",
+    "host_tools": "not-demonstrated",
+    "content_classification": "metadata-only"
+  },
+  "measurements": {
+    "acquisition": "not-demonstrated",
+    "naf_content_acquisition": "not-performed-by-admission-harness",
+    "parser": "not-demonstrated",
+    "vlm": "not-demonstrated",
+    "machine": "not-demonstrated",
+    "no_egress": "not-demonstrated",
+    "invalid_measurements": [],
+    "corrections": []
+  },
+  "gates": [
+    {
+      "gate": "LIC",
+      "outcome": "adjust",
+      "reason": "phase0-window-expired-before-resolution",
+      "criteria": [
+        {
+          "id": "LIC-GRAPH",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-20-NOT-RESOLVED",
+            "PR-27-MERGE",
+            "ISSUE-20-SECOND-TRACKER-CORRECTION"
+          ]
+        },
+        {
+          "id": "LIC-ORIGIN-LICENSE-NOTICE",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-20-NOT-RESOLVED",
+            "PR-27-MERGE",
+            "ISSUE-20-SECOND-TRACKER-CORRECTION"
+          ]
+        },
+        {
+          "id": "LIC-LOCK-CLOSURE",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-20-NOT-RESOLVED",
+            "PR-27-MERGE",
+            "ISSUE-20-SECOND-TRACKER-CORRECTION"
+          ]
+        },
+        {
+          "id": "LIC-EXCEPTIONS",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-20-NOT-RESOLVED",
+            "PR-27-MERGE",
+            "ISSUE-20-SECOND-TRACKER-CORRECTION"
+          ]
+        },
+        {
+          "id": "LIC-SBOM-NOTICES",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-20-NOT-RESOLVED",
+            "PR-27-MERGE",
+            "ISSUE-20-SECOND-TRACKER-CORRECTION"
+          ]
+        },
+        {
+          "id": "LIC-PREFETCH-NO-EGRESS",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-20-NOT-RESOLVED",
+            "PR-27-MERGE",
+            "ISSUE-20-SECOND-TRACKER-CORRECTION"
+          ]
+        }
+      ],
+      "evidence_refs": [
+        "AUTH-PRIOR",
+        "CONTRACT-BASE",
+        "ISSUE-20-NOT-RESOLVED",
+        "PR-27-MERGE",
+        "ISSUE-20-SECOND-TRACKER-CORRECTION"
+      ]
+    },
+    {
+      "gate": "CORPUS",
+      "outcome": "adjust",
+      "reason": "phase0-window-expired-before-resolution",
+      "criteria": [
+        {
+          "id": "CORPUS-SOURCE-IDENTITY",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-21"
+          ]
+        },
+        {
+          "id": "CORPUS-IMAGE-SPLIT-MANIFEST",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-21"
+          ]
+        },
+        {
+          "id": "CORPUS-SMOKE-POPULATIONS",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-21"
+          ]
+        },
+        {
+          "id": "CORPUS-SCORER",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-21"
+          ]
+        },
+        {
+          "id": "CORPUS-ELIGIBILITY-LEDGER",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-21"
+          ]
+        },
+        {
+          "id": "CORPUS-PUBLICATION-BOUNDARY",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-21"
+          ]
+        }
+      ],
+      "evidence_refs": [
+        "AUTH-PRIOR",
+        "CONTRACT-BASE",
+        "ISSUE-21"
+      ]
+    },
+    {
+      "gate": "PARSER",
+      "outcome": "adjust",
+      "reason": "phase0-window-expired-before-resolution",
+      "criteria": [
+        {
+          "id": "PARSER-ENVIRONMENT",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-22"
+          ]
+        },
+        {
+          "id": "PARSER-LIC",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-22"
+          ]
+        },
+        {
+          "id": "PARSER-LOCAL-OFFLINE",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-22"
+          ]
+        },
+        {
+          "id": "PARSER-COMPLETION",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-22"
+          ]
+        },
+        {
+          "id": "PARSER-TYPED-OUTPUT",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-22"
+          ]
+        },
+        {
+          "id": "PARSER-TABLE-ASSERTIONS",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-22"
+          ]
+        },
+        {
+          "id": "PARSER-FINGERPRINT",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-22"
+          ]
+        },
+        {
+          "id": "PARSER-TELEMETRY",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-22"
+          ]
+        }
+      ],
+      "evidence_refs": [
+        "AUTH-PRIOR",
+        "CONTRACT-BASE",
+        "ISSUE-22"
+      ]
+    },
+    {
+      "gate": "VLM",
+      "outcome": "adjust",
+      "reason": "phase0-window-expired-before-resolution",
+      "criteria": [
+        {
+          "id": "VLM-ARTIFACT",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-23"
+          ]
+        },
+        {
+          "id": "VLM-POPULATION",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-23"
+          ]
+        },
+        {
+          "id": "VLM-REQUEST-MATRIX",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-23"
+          ]
+        },
+        {
+          "id": "VLM-GATES",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-23"
+          ]
+        },
+        {
+          "id": "VLM-SELECTED-CANDIDATE",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-23"
+          ]
+        }
+      ],
+      "evidence_refs": [
+        "AUTH-PRIOR",
+        "CONTRACT-BASE",
+        "ISSUE-23"
+      ]
+    },
+    {
+      "gate": "MACHINE",
+      "outcome": "adjust",
+      "reason": "phase0-window-expired-before-resolution",
+      "criteria": [
+        {
+          "id": "MACHINE-PARSER-COEXISTENCE",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-24"
+          ]
+        },
+        {
+          "id": "MACHINE-VLM-COEXISTENCE",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-24"
+          ]
+        },
+        {
+          "id": "MACHINE-PRESSURE-HEALTH",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-24"
+          ]
+        },
+        {
+          "id": "MACHINE-SWAP",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-24"
+          ]
+        },
+        {
+          "id": "MACHINE-TELEMETRY",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-24"
+          ]
+        }
+      ],
+      "evidence_refs": [
+        "AUTH-PRIOR",
+        "CONTRACT-BASE",
+        "ISSUE-24"
+      ]
+    },
+    {
+      "gate": "WALK",
+      "outcome": "adjust",
+      "reason": "phase0-window-expired-before-resolution",
+      "criteria": [
+        {
+          "id": "WALK-COMPATIBILITY",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-25"
+          ]
+        },
+        {
+          "id": "WALK-SELECTED-PATH",
+          "outcome": "adjust",
+          "observed": "not-demonstrated",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-25"
+          ]
+        },
+        {
+          "id": "WALK-DEADLINE",
+          "outcome": "adjust",
+          "observed": "deadline-expired-2026-08-10T17:54:45Z",
+          "reason": "phase0-window-expired-before-resolution",
+          "evidence_refs": [
+            "AUTH-PRIOR",
+            "CONTRACT-BASE",
+            "ISSUE-25"
+          ]
+        }
+      ],
+      "evidence_refs": [
+        "AUTH-PRIOR",
+        "CONTRACT-BASE",
+        "ISSUE-25"
+      ]
+    }
+  ],
+  "precedence": {
+    "algorithm": "Cut > Adjust > Go",
+    "cut_count": 0,
+    "adjust_count": 6,
+    "go_count": 0,
+    "overall_outcome": "adjust",
+    "overall_reason": "phase0-window-expired-before-resolution"
+  },
+  "selected_components": {
+    "parser": "not-selected-by-measurement",
+    "ocr": "not-selected-by-measurement",
+    "model": "not-selected-by-measurement",
+    "context": "not-selected-by-measurement"
+  },
+  "publication": {
+    "content_classification": "metadata-only",
+    "publication_disposition": "publication-safe",
+    "contains_restricted_data": false,
+    "contains_local_paths": false,
+    "contains_secrets": false,
+    "contains_third_party_payloads": false
+  },
+  "approval": {
+    "status": "pending-human-non-authorizing-approval",
+    "approver": null,
+    "approved_at_utc": null,
+    "approval_comment_url": null,
+    "establishes_t0": false
+  },
+  "gate_contract_version": "d5e0f3dfca08f6bc11ad02a6ee275aef0e43b2f9+phase0-recovery-candidate-v1",
+  "evidence_index": {
+    "AUTH-PRIOR": "https://github.com/monocongo/docproc/issues/13#issuecomment-5227376778",
+    "CONTRACT-BASE": "https://github.com/monocongo/docproc/blob/d5e0f3dfca08f6bc11ad02a6ee275aef0e43b2f9/docs/decisions/phase-0-go-adjust-cut-gate.md",
+    "ISSUE-20-NOT-RESOLVED": "https://github.com/monocongo/docproc/issues/20#issuecomment-5229146843",
+    "ISSUE-20-TRACKER-CORRECTION": "https://github.com/monocongo/docproc/issues/20#issuecomment-5343953722",
+    "ISSUE-20-SECOND-TRACKER-CORRECTION": "https://github.com/monocongo/docproc/issues/20#issuecomment-5344087081",
+    "ISSUE-21": "https://github.com/monocongo/docproc/issues/21",
+    "ISSUE-22": "https://github.com/monocongo/docproc/issues/22",
+    "ISSUE-23": "https://github.com/monocongo/docproc/issues/23",
+    "ISSUE-24": "https://github.com/monocongo/docproc/issues/24",
+    "ISSUE-25": "https://github.com/monocongo/docproc/issues/25",
+    "PR-27-MERGE": "https://github.com/monocongo/docproc/commit/81d554ad5d153fff2b36753bca5e0da9ed0ff531"
+  }
+}
