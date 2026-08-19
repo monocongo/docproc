@@ -11,7 +11,7 @@ The control implements the Phase 0 boundary from the approved blueprint (`367454
 - `lock/base-primary-policy.json` is an admission **catalog**, not an approval. It names only the base graph and the primary `qwen3.5:9b-q4_K_M` candidate. It does not name either fallback as an initial acquisition.
 - Every catalog item is `pending-human-review`. The tool refuses to issue any network request while that is true. In particular, it preserves the metadata-only Heron/TableFormer/RapidOCR evidence and the Ollama conversion-lineage gap as exceptions requiring review; it does not call either verified provenance.
 - The catalog also makes the unselected SBOM/license tool an explicit unresolved input. A scanner must be separately selected, version-pinned, acquired, and reviewed; this harness must not quietly install one.
-- `lock/phase0_lock.py` rejects credential- or query-bearing URLs, redirects, unreviewed licenses, `NOASSERTION`, non-canonical JSON, graph entries not explicitly approved for acquisition, byte/size or encoding mismatches, and any evidence root inside the checkout that contains this harness. An approved exact-byte row also requires a `git:<commit>` or `sha256:<digest>` immutable origin reference, reviewed artifact-descriptor metadata, an explicit license expression, reviewed copyright/notice statuses, and content-digest references to exact approved license/notice/metadata/review-record bytes. Private evidence reads open each path through no-follow directory descriptors and validate the same file descriptor they read.
+- `lock/phase0_lock.py` rejects credential- or query-bearing URLs, redirects, unreviewed licenses, `NOASSERTION`, non-canonical JSON, graph entries not explicitly approved for acquisition, byte/size or encoding mismatches, and any evidence root inside the checkout that contains this harness. An approved exact-byte row also requires reviewed artifact-descriptor metadata, an explicit license expression, reviewed copyright/notice statuses, and content-digest references to same-component, role-typed, textual approved license/notice/metadata/review-record bytes. A `sha256:` origin reference must equal the acquired digest; a `git:` reference additionally requires a same-component `origin-provenance` byte. Private evidence reads, writes, temporary downloads, and artifact installation use no-follow directory descriptors rather than reusing checked parent pathnames.
 - `schemas/phase0-lock-inventory-v1.json` fixes the complete nested payload shape. The tool produces content-addressed payload (`evp1`), artifact-descriptor (`art1`), and envelope (`evr1`) addresses using the domain-separated SHA-256 preimages defined in `lock/phase0_lock.py`, verifies the schema and descriptor bindings on read, and creates owner-only private evidence directories/files. It limits records to the integer/string JSON subset that it can canonicalize correctly without introducing an unadmitted dependency.
 - `lock/network-deny-pf.sh` is deliberately disabled. An anchor in an arbitrary macOS PF ruleset cannot attest complete egress denial because earlier anchors, stateful inbound traffic, and escaped descendants can bypass it. The script performs no PF mutation and refuses every measured command; a separately reviewed isolated guest or container-network boundary is required before any parser/VLM rerun. It does not claim that Docker Desktop VM traffic is covered.
 - Host-baseline capture hashes listed host tools but does not execute them merely to learn a version. Exact tool versions are an admission-policy input; only the fixed macOS platform probes are executed for the baseline.
@@ -33,25 +33,30 @@ The catalog deliberately cannot be edited into a runnable prefetch file by chang
 
 ## Controlled workflow
 
-All commands below are deliberately manual. They must be run only after the review above and must retain their stdout/stderr as an acquisition or preflight observation. `PRIVATE_ROOT` must be a private directory outside the repository.
+All commands below are deliberately manual. They must be run only after the review above and must retain their stdout/stderr as an acquisition or preflight observation. `PRIVATE_ROOT` must be a private directory outside the repository. Before a control file is used for closure, acquisition, sealing, or verification, a human reviewer must independently retain the exact SHA-256 of the catalog, exact-byte policy, schema, and private host baseline; supplying a digest calculated from an unreviewed file in the same command is not review.
 
 ```sh
 PRIVATE_ROOT="$HOME/.local/share/docproc-phase0"
 python3 phase0/lock/phase0_lock.py validate-policy \
   --policy phase0/lock/base-primary-policy.json
-python3 phase0/lock/phase0_lock.py capture-host-baseline \
-  --root "$PRIVATE_ROOT"
+HOST_BASELINE_DIGEST="$(python3 phase0/lock/phase0_lock.py capture-host-baseline \
+  --root "$PRIVATE_ROOT")"
+# Retain and review HOST_BASELINE_DIGEST independently before later use.
 ```
 
-Create a reviewed **exact-byte** policy outside Git with `policy_version` `phase0-exact-byte-v1`. It uses the same shape as `base-primary-policy.json`, adds a `component_id` naming one catalog row, and gives every required entry `approved-for-acquisition`, an exact publisher URL, matching digest/length, and complete license evidence. License evidence references name another approved exact-byte row and its matching content digest; ordinary reviewed rows require exact license-text evidence, while a reviewed exception requires metadata or license-text evidence plus an exact review-record byte. Copyright and notice status are explicit, and `present` status requires the corresponding evidence role. The policy must include the complete wheel/native/model/OCI/layer/license/notice closure—not merely this catalog's component rows. Then:
+Create a reviewed **exact-byte** policy outside Git with `policy_version` `phase0-exact-byte-v1`. It uses the same shape as `base-primary-policy.json`, adds a `component_id` naming one catalog row, and gives every required entry `approved-for-acquisition`, an exact publisher URL, matching digest/length, and complete license evidence. License evidence references name a same-component approved exact-byte row with a role-compatible kind (`license-text`, `copyright-evidence`, `notice`, `license-metadata`, or `license-review-record`), textual identity encoding, and matching content digest. Ordinary reviewed rows require exact license-text evidence, while a reviewed exception requires metadata or license-text evidence plus an exact review-record byte. Copyright and notice status are explicit, and `present` status requires the corresponding evidence role. Git origins require a matching `origin-provenance` evidence row; SHA-256 origins must identify their acquired byte directly. The policy must include the complete wheel/native/model/OCI/layer/license/notice closure—not merely this catalog's component rows. Then retrieve `CATALOG_DIGEST` and `POLICY_DIGEST` from the independent human review record:
 
 ```sh
 python3 phase0/lock/phase0_lock.py validate-closure \
   --catalog phase0/lock/base-primary-policy.json \
-  --policy "$PRIVATE_ROOT/reviewed-exact-byte-policy.json"
+  --catalog-digest "$CATALOG_DIGEST" \
+  --policy "$PRIVATE_ROOT/reviewed-exact-byte-policy.json" \
+  --policy-digest "$POLICY_DIGEST"
 python3 phase0/lock/phase0_lock.py prefetch \
   --catalog phase0/lock/base-primary-policy.json \
+  --catalog-digest "$CATALOG_DIGEST" \
   --policy "$PRIVATE_ROOT/reviewed-exact-byte-policy.json" \
+  --policy-digest "$POLICY_DIGEST" \
   --root "$PRIVATE_ROOT"
 ```
 
@@ -64,24 +69,32 @@ if curl --connect-timeout 2 --max-time 3 https://example.com; then
 fi
 ```
 
-Only after the selected SBOM/license tool has scanned the resolved closure, notices have been generated, every required observation is present, and the final policy/source commit are fixed, seal the private evidence record:
+Only after the selected SBOM/license tool has scanned the resolved closure, notices have been generated, every required observation is present, and the final policy/source commit are fixed, retrieve `SCHEMA_DIGEST` and `REVIEWED_SOURCE_COMMIT` from the independent review record and seal the private evidence record:
 
 ```sh
 python3 phase0/lock/phase0_lock.py seal \
   --catalog phase0/lock/base-primary-policy.json \
+  --catalog-digest "$CATALOG_DIGEST" \
   --policy "$PRIVATE_ROOT/reviewed-exact-byte-policy.json" \
+  --policy-digest "$POLICY_DIGEST" \
   --root "$PRIVATE_ROOT" \
   --schema schemas/phase0-lock-inventory-v1.json \
-  --source-commit "$(git rev-parse HEAD)"
+  --schema-digest "$SCHEMA_DIGEST" \
+  --host-baseline-digest "$HOST_BASELINE_DIGEST" \
+  --source-commit "$REVIEWED_SOURCE_COMMIT"
 python3 phase0/lock/phase0_lock.py verify \
   --root "$PRIVATE_ROOT" \
   --catalog phase0/lock/base-primary-policy.json \
+  --catalog-digest "$CATALOG_DIGEST" \
   --policy "$PRIVATE_ROOT/reviewed-exact-byte-policy.json" \
+  --policy-digest "$POLICY_DIGEST" \
   --schema schemas/phase0-lock-inventory-v1.json \
+  --schema-digest "$SCHEMA_DIGEST" \
+  --host-baseline-digest "$HOST_BASELINE_DIGEST" \
   --evidence-address 'evr1:sha256:...'
 ```
 
-`seal` requires and content-binds the private `host-baseline.json` produced above, then creates the private `EVID-LOCK-INVENTORY-001` envelope and human summary with outcome `pending-human-admission-review`. That outcome is neither artifact admission nor Gate LIC Go. Final LIC reconciliation must additionally cover scanner results, notices, SBOMs, all actual OCI/model closures, approved exceptions, and an observed parser/VLM rerun with egress denied. That final outcome belongs in #25.
+`seal` requires and content-binds the private `host-baseline.json` produced above, then creates the private `EVID-LOCK-INVENTORY-001` envelope and human summary using the `phase0-admission-review-candidate` profile, `acquired-candidate-byte` artifact role, and outcome `pending-human-admission-review`. The record admits no artifact and is not a Gate LIC outcome. Final LIC reconciliation must additionally cover scanner results, notices, SBOMs, all actual OCI/model closures, approved exceptions, and an observed parser/VLM rerun with egress denied. That final outcome belongs in #25.
 
 ## Prohibited behavior
 

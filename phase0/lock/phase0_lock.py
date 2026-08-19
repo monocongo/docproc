@@ -15,13 +15,13 @@ import math
 import os
 import platform
 import re
+import secrets
 import shutil
 import sqlite3
 import stat
 import subprocess
 import sys
 import time
-import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -67,11 +67,54 @@ def no_duplicate_object(pairs: List[Tuple[str, Any]]) -> Dict[str, Any]:
     return result
 
 
-def load_json(path: Path) -> Any:
+def read_regular_bytes(path: Path, context: str) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
     try:
-        return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=no_duplicate_object)
-    except (OSError, json.JSONDecodeError) as exc:
-        die("cannot read JSON %s: %s" % (path, exc))
+        descriptor = os.open(path, flags)
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode):
+            die("%s must be a regular file" % context)
+        with os.fdopen(descriptor, "rb") as handle:
+            return handle.read()
+    except LockError:
+        try:
+            os.close(descriptor)
+        except (NameError, OSError):
+            pass
+        raise
+    except OSError as exc:
+        try:
+            os.close(descriptor)
+        except (NameError, OSError):
+            pass
+        die("cannot read %s: %s" % (context, type(exc).__name__))
+
+
+def parse_json_bytes(data: bytes, context: str) -> Any:
+    try:
+        return json.loads(data.decode("utf-8"), object_pairs_hook=no_duplicate_object)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        die("cannot decode %s: %s" % (context, type(exc).__name__))
+
+
+def load_json(path: Path) -> Any:
+    return parse_json_bytes(read_regular_bytes(path, "JSON document"), "JSON document")
+
+
+def load_reviewed_json_document(path: Path, expected_digest: str | None, context: str) -> Tuple[Any, bytes]:
+    data = read_regular_bytes(path, "reviewed %s" % context)
+    observed_digest = "sha256:" + sha256_bytes(data)
+    if expected_digest is not None:
+        if not SHA256_RE.fullmatch(expected_digest):
+            die("reviewed %s digest must be sha256:<64 lowercase hex>" % context)
+        if observed_digest != expected_digest:
+            die("reviewed %s digest mismatch" % context)
+    return parse_json_bytes(data, "reviewed %s" % context), data
+
+
+def load_reviewed_json(path: Path, expected_digest: str, context: str) -> Any:
+    value, _ = load_reviewed_json_document(path, expected_digest, context)
+    return value
 
 
 def parse_private_json(data: bytes, context: str) -> Any:
@@ -169,55 +212,6 @@ def ensure_private_directory(directory: Path) -> None:
         die("private evidence directory must be owned and accessible only by this user")
 
 
-def ensure_private_tree(root: Path, directory: Path) -> None:
-    """Create and check evidence directories without inheriting the umask."""
-    try:
-        relative = directory.relative_to(root)
-    except ValueError:
-        die("private evidence path escapes its root")
-    ensure_private_directory(root)
-    current = root
-    for part in relative.parts:
-        current /= part
-        ensure_private_directory(current)
-
-
-def ensure_existing_private_tree(root: Path, directory: Path, context: str) -> None:
-    try:
-        relative = directory.relative_to(root)
-    except ValueError:
-        die("%s escapes the private evidence root" % context)
-    ensure_private_directory(root)
-    current = root
-    for part in relative.parts:
-        current /= part
-        try:
-            info = current.lstat()
-        except OSError as exc:
-            die("cannot inspect %s: %s" % (context, type(exc).__name__))
-        if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
-            die("%s parent must be a regular private directory" % context)
-        if info.st_uid != os.getuid() or info.st_mode & 0o077:
-            die("%s parent must be owned and accessible only by this user" % context)
-
-
-def ensure_private_file(root: Path, path: Path, context: str) -> None:
-    """Require an owner-only, non-symlink file inside the private evidence root."""
-    try:
-        path.relative_to(root)
-    except ValueError:
-        die("%s escapes the private evidence root" % context)
-    ensure_existing_private_tree(root, path.parent, context)
-    try:
-        info = path.lstat()
-    except OSError as exc:
-        die("cannot inspect %s: %s" % (context, type(exc).__name__))
-    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
-        die("%s must be a regular private file" % context)
-    if info.st_uid != os.getuid() or info.st_mode & 0o077:
-        die("%s must be owned and accessible only by this user" % context)
-
-
 def validate_private_stat(
     info: os.stat_result, context: str, expected_type: str, require_single_link: bool = True
 ) -> None:
@@ -231,6 +225,92 @@ def validate_private_stat(
         die("%s must be a singly linked regular private file" % context)
 
 
+def open_private_directory_descriptor(
+    root: Path, directory: Path, context: str, missing_ok: bool = False
+) -> int | None:
+    """Open one private directory by walking no-follow descriptors from root."""
+    try:
+        relative = directory.relative_to(root)
+    except ValueError:
+        die("%s escapes the private evidence root" % context)
+    if any(not hasattr(os, name) for name in ("O_DIRECTORY", "O_NOFOLLOW")):
+        die("descriptor-bound private access is unavailable on this platform")
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    descriptors = []
+    try:
+        current = os.open(root, flags)
+        descriptors.append(current)
+        validate_private_stat(os.fstat(current), context + " root", "directory")
+        for part in relative.parts:
+            try:
+                current = os.open(part, flags, dir_fd=current)
+            except FileNotFoundError:
+                if missing_ok:
+                    return None
+                raise
+            descriptors.append(current)
+            validate_private_stat(os.fstat(current), context, "directory")
+        result = descriptors.pop()
+        return result
+    except LockError:
+        raise
+    except OSError as exc:
+        die("cannot open %s: %s" % (context, type(exc).__name__))
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+
+
+def open_private_directory_at(
+    root_descriptor: int, parts: Tuple[str, ...], context: str, create: bool = False
+) -> int:
+    """Walk from an already pinned root descriptor, optionally creating parents."""
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    descriptors = [os.dup(root_descriptor)]
+    try:
+        validate_private_stat(os.fstat(descriptors[0]), context + " root", "directory")
+        current = descriptors[0]
+        for part in parts:
+            try:
+                next_descriptor = os.open(part, flags, dir_fd=current)
+            except FileNotFoundError:
+                if not create:
+                    raise
+                try:
+                    os.mkdir(part, mode=0o700, dir_fd=current)
+                except FileExistsError:
+                    pass
+                next_descriptor = os.open(part, flags, dir_fd=current)
+            current = next_descriptor
+            descriptors.append(current)
+            validate_private_stat(os.fstat(current), context, "directory")
+        result = descriptors.pop()
+        return result
+    except LockError:
+        raise
+    except OSError as exc:
+        die("cannot open %s: %s" % (context, type(exc).__name__))
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+
+
+def open_or_create_private_directory_descriptor(
+    root: Path, directory: Path, context: str
+) -> int:
+    """Create and open a private directory tree through pinned parent descriptors."""
+    try:
+        relative = directory.relative_to(root)
+    except ValueError:
+        die("%s escapes the private evidence root" % context)
+    root_descriptor = open_private_directory_descriptor(root, root, context + " root")
+    assert root_descriptor is not None
+    try:
+        return open_private_directory_at(root_descriptor, relative.parts, context, create=True)
+    finally:
+        os.close(root_descriptor)
+
+
 def open_private_file_descriptor(
     root: Path, path: Path, context: str, require_single_link: bool = True
 ) -> int:
@@ -241,21 +321,11 @@ def open_private_file_descriptor(
         die("%s escapes the private evidence root" % context)
     if not relative.parts:
         die("%s does not name a private file" % context)
-    required_flags = ("O_DIRECTORY", "O_NOFOLLOW")
-    if any(not hasattr(os, name) for name in required_flags):
-        die("descriptor-bound private reads are unavailable on this platform")
-    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
-    file_flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
-    directory_descriptors = []
+    parent = open_private_directory_descriptor(root, path.parent, context + " parent")
+    assert parent is not None
+    flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
     try:
-        current = os.open(root, directory_flags)
-        directory_descriptors.append(current)
-        validate_private_stat(os.fstat(current), context + " root", "directory")
-        for part in relative.parts[:-1]:
-            current = os.open(part, directory_flags, dir_fd=current)
-            directory_descriptors.append(current)
-            validate_private_stat(os.fstat(current), context + " parent", "directory")
-        descriptor = os.open(relative.parts[-1], file_flags, dir_fd=current)
+        descriptor = os.open(relative.parts[-1], flags, dir_fd=parent)
         try:
             validate_private_stat(
                 os.fstat(descriptor), context, "file", require_single_link=require_single_link
@@ -269,8 +339,59 @@ def open_private_file_descriptor(
     except OSError as exc:
         die("cannot open %s: %s" % (context, type(exc).__name__))
     finally:
-        for directory_descriptor in reversed(directory_descriptors):
-            os.close(directory_descriptor)
+        os.close(parent)
+
+
+def open_private_file_at(
+    directory_descriptor: int, name: str, context: str, require_single_link: bool = True
+) -> int:
+    if not name or "/" in name or name in {".", ".."}:
+        die("%s has an invalid private filename" % context)
+    flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    try:
+        descriptor = os.open(name, flags, dir_fd=directory_descriptor)
+        validate_private_stat(
+            os.fstat(descriptor), context, "file", require_single_link=require_single_link
+        )
+        return descriptor
+    except LockError:
+        try:
+            os.close(descriptor)
+        except (NameError, OSError):
+            pass
+        raise
+    except OSError as exc:
+        try:
+            os.close(descriptor)
+        except (NameError, OSError):
+            pass
+        die("cannot open %s: %s" % (context, type(exc).__name__))
+
+
+def read_private_file_at(directory_descriptor: int, name: str, context: str) -> bytes:
+    descriptor = open_private_file_at(directory_descriptor, name, context)
+    try:
+        with os.fdopen(descriptor, "rb") as handle:
+            return handle.read()
+    except OSError as exc:
+        die("cannot read %s: %s" % (context, type(exc).__name__))
+
+
+def sha256_private_file_at(directory_descriptor: int, name: str, context: str) -> Tuple[str, int]:
+    descriptor = open_private_file_at(directory_descriptor, name, context)
+    digest = hashlib.sha256()
+    length = 0
+    try:
+        with os.fdopen(descriptor, "rb") as handle:
+            while True:
+                block = handle.read(1024 * 1024)
+                if not block:
+                    break
+                digest.update(block)
+                length += len(block)
+    except OSError as exc:
+        die("cannot read %s: %s" % (context, type(exc).__name__))
+    return digest.hexdigest(), length
 
 
 def read_private_bytes(root: Path, path: Path, context: str) -> bytes:
@@ -304,16 +425,42 @@ def sha256_private_file(root: Path, path: Path, context: str) -> Tuple[str, int]
 
 
 def write_once(root: Path, path: Path, data: bytes) -> None:
-    """Create private content once, or prove an existing file has identical bytes."""
-    ensure_private_tree(root, path.parent)
+    """Create private content once through a pinned parent, or prove equality."""
     try:
-        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    except FileExistsError:
-        if read_private_bytes(root, path, "immutable private evidence") != data:
-            die("immutable private evidence already contains different bytes")
-    else:
-        with os.fdopen(descriptor, "wb") as handle:
-            handle.write(data)
+        relative = path.relative_to(root)
+    except ValueError:
+        die("immutable private evidence escapes its root")
+    if not relative.parts:
+        die("immutable private evidence does not name a file")
+    parent = open_or_create_private_directory_descriptor(
+        root, path.parent, "immutable private evidence parent"
+    )
+    flags = (
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    try:
+        try:
+            descriptor = os.open(relative.parts[-1], flags, 0o600, dir_fd=parent)
+        except FileExistsError:
+            if read_private_file_at(parent, relative.parts[-1], "immutable private evidence") != data:
+                die("immutable private evidence already contains different bytes")
+        else:
+            try:
+                validate_private_stat(os.fstat(descriptor), "immutable private evidence", "file")
+            except BaseException:
+                os.close(descriptor)
+                raise
+            with os.fdopen(descriptor, "wb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+    except LockError:
+        raise
+    except OSError as exc:
+        die("cannot write immutable private evidence: %s" % type(exc).__name__)
+    finally:
+        os.close(parent)
 
 
 def write_json_once(root: Path, path: Path, value: Any) -> None:
@@ -391,16 +538,22 @@ def validate_host_baseline(record: Any) -> Dict[str, Any]:
     return record
 
 
-def load_host_baseline(root: Path) -> Dict[str, str]:
+def load_host_baseline(root: Path, expected_digest: str | None = None) -> Dict[str, str]:
     """Bind sealing to the exact private host baseline bytes."""
     path = root / "host-baseline.json"
     data = read_private_bytes(root, path, "host baseline")
     record = validate_host_baseline(parse_private_json(data, "host baseline"))
     if data != jcs_bytes(record) + b"\n":
         die("host baseline must use canonical JSON bytes")
+    content_digest = "sha256:" + sha256_bytes(data)
+    if expected_digest is not None:
+        if not SHA256_RE.fullmatch(expected_digest):
+            die("reviewed host baseline digest must be sha256:<64 lowercase hex>")
+        if content_digest != expected_digest:
+            die("reviewed host baseline digest mismatch")
     return {
         "kind": "phase0-host-baseline-v1",
-        "content_digest": "sha256:" + sha256_bytes(data),
+        "content_digest": content_digest,
     }
 
 
@@ -517,8 +670,39 @@ def validate_license_info(value: Any, artifact_id: str, require_complete: bool) 
     return value
 
 
+def validate_origin_references(policy: Dict[str, Any]) -> None:
+    """Bind Git revisions to exact, role-typed provenance bytes."""
+    items = {item["id"]: item for item in policy_items(policy)}
+    for item in items.values():
+        if item["admission_status"] != "approved-for-acquisition":
+            continue
+        reference = item["origin"]["immutable_reference"]
+        if not reference.startswith("git:"):
+            continue
+        provenance = item["origin"]["provenance"]
+        target = items.get(provenance["artifact_id"])
+        if (
+            target is None
+            or target["admission_status"] != "approved-for-acquisition"
+            or target["component_id"] != item["component_id"]
+            or target["kind"] != "origin-provenance"
+            or provenance["content_digest"] != "sha256:" + target["acquisition"]["expected"]["sha256"]
+        ):
+            die("artifact %s Git provenance is not a matching approved exact byte" % item["id"])
+        descriptor = target["acquisition"]["descriptor"]
+        if descriptor["content_encoding"] != "identity" or not TEXTUAL_MEDIA_TYPE_RE.match(descriptor["media_type"]):
+            die("artifact %s Git provenance must be textual identity-encoded evidence" % item["id"])
+
+
 def validate_license_references(policy: Dict[str, Any]) -> None:
-    """Bind every approved license/notice reference to an exact approved byte."""
+    """Bind every approved license/notice reference to a role-typed exact byte."""
+    role_kinds = {
+        "license-text": "license-text",
+        "copyright": "copyright-evidence",
+        "notice": "notice",
+        "metadata": "license-metadata",
+        "review-record": "license-review-record",
+    }
     items = {item["id"]: item for item in policy_items(policy)}
     for item in items.values():
         if item["admission_status"] != "approved-for-acquisition":
@@ -528,8 +712,17 @@ def validate_license_references(policy: Dict[str, Any]) -> None:
             if target is None or target["admission_status"] != "approved-for-acquisition":
                 die("artifact %s license evidence is not an approved exact byte" % item["id"])
             expected = target["acquisition"].get("expected")
-            if not isinstance(expected, dict) or ref["content_digest"] != "sha256:" + expected.get("sha256", ""):
-                die("artifact %s license evidence digest does not match its exact byte" % item["id"])
+            descriptor = target["acquisition"].get("descriptor")
+            if (
+                target["component_id"] != item["component_id"]
+                or target["kind"] != role_kinds[ref["role"]]
+                or not isinstance(expected, dict)
+                or ref["content_digest"] != "sha256:" + expected.get("sha256", "")
+                or not isinstance(descriptor, dict)
+                or descriptor.get("content_encoding") != "identity"
+                or not TEXTUAL_MEDIA_TYPE_RE.match(descriptor.get("media_type", ""))
+            ):
+                die("artifact %s license evidence is not a role-compatible textual exact byte" % item["id"])
 
 
 def validate_policy(policy: Any) -> Dict[str, Any]:
@@ -596,7 +789,7 @@ def validate_policy(policy: Any) -> Dict[str, Any]:
         if item["admission_status"] not in {"pending-human-review", "approved-for-acquisition", "denied"}:
             die("artifact %s has unknown admission_status" % identifier)
         origin = item["origin"]
-        if not isinstance(origin, dict) or set(origin) - {"authority", "revision", "immutable_reference"}:
+        if not isinstance(origin, dict) or set(origin) - {"authority", "revision", "immutable_reference", "provenance"}:
             die("artifact %s has invalid origin metadata" % identifier)
         if not isinstance(origin.get("authority"), str) or not origin.get("authority"):
             die("artifact %s has no authoritative origin" % identifier)
@@ -606,6 +799,19 @@ def validate_policy(policy: Any) -> Dict[str, Any]:
             immutable_reference = origin.get("immutable_reference")
             if not isinstance(immutable_reference, str) or not IMMUTABLE_REFERENCE_RE.fullmatch(immutable_reference):
                 die("approved artifact %s requires an immutable origin reference" % identifier)
+            provenance = origin.get("provenance")
+            if immutable_reference.startswith("git:"):
+                if not isinstance(provenance, dict) or set(provenance) != {"artifact_id", "content_digest"}:
+                    die("approved artifact %s Git origin requires provenance evidence" % identifier)
+                if (
+                    not isinstance(provenance["artifact_id"], str)
+                    or not re.fullmatch(r"[a-z0-9][a-z0-9.-]+", provenance["artifact_id"])
+                    or not isinstance(provenance["content_digest"], str)
+                    or not SHA256_RE.fullmatch(provenance["content_digest"])
+                ):
+                    die("approved artifact %s has invalid Git provenance evidence" % identifier)
+            elif provenance is not None:
+                die("approved SHA-256 artifact %s must not carry Git provenance evidence" % identifier)
         acquisition = item["acquisition"]
         if not isinstance(acquisition, dict):
             die("artifact %s acquisition must be an object" % identifier)
@@ -627,6 +833,8 @@ def validate_policy(policy: Any) -> Dict[str, Any]:
                 die("approved artifact %s requires an expected SHA-256" % identifier)
             if type(expected.get("byte_length")) is not int or expected["byte_length"] < 0:
                 die("approved artifact %s requires an expected byte_length" % identifier)
+            if origin["immutable_reference"].startswith("sha256:") and origin["immutable_reference"] != "sha256:" + expected_sha256:
+                die("approved artifact %s SHA-256 origin reference does not identify the acquired bytes" % identifier)
             validate_descriptor_metadata(acquisition.get("descriptor"), identifier)
         elif url is not None:
             if not isinstance(url, str):
@@ -642,6 +850,7 @@ def validate_policy(policy: Any) -> Dict[str, Any]:
         if item["publication_disposition"] not in {"metadata-only", "do-not-publish", "private-only"}:
             die("artifact %s has an invalid publication disposition" % identifier)
     if policy["policy_version"] == "phase0-exact-byte-v1":
+        validate_origin_references(policy)
         validate_license_references(policy)
     return policy
 
@@ -677,23 +886,54 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def install_artifact_once(
-    root: Path, temporary: Path, source_descriptor: int, artifact_path: Path,
+def create_private_temporary_at(root_descriptor: int, prefix: str) -> Tuple[int, str]:
+    """Create an owner-only temporary file relative to a pinned evidence root."""
+    flags = (
+        os.O_RDWR | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    for _ in range(128):
+        name = prefix + secrets.token_hex(16)
+        try:
+            descriptor = os.open(name, flags, 0o600, dir_fd=root_descriptor)
+        except FileExistsError:
+            continue
+        try:
+            validate_private_stat(os.fstat(descriptor), "secure temporary artifact", "file")
+        except BaseException:
+            os.close(descriptor)
+            raise
+        return descriptor, name
+    die("cannot allocate a unique secure temporary artifact")
+
+
+def install_artifact_once_at(
+    root_descriptor: int, temporary_name: str, source_descriptor: int, artifact_name: str,
     item_id: str, observed: str, length: int
 ) -> None:
-    """Atomically install an immutable artifact without replacing an existing path."""
-    ensure_private_tree(root, artifact_path.parent)
+    """Install an artifact using only names relative to one pinned private root."""
+    artifacts_descriptor = open_private_directory_at(
+        root_descriptor, ("artifacts",), "content-addressed artifact directory", create=True
+    )
     try:
-        os.link(temporary, artifact_path)
-    except FileExistsError:
-        existing_digest, existing_length = sha256_private_file(
-            root, artifact_path, "existing content-addressed artifact for %s" % item_id
-        )
-        if existing_digest != observed or existing_length != length:
-            die("content-addressed artifact collision for %s at sha256-%s" % (item_id, observed))
-    else:
-        installed_descriptor = open_private_file_descriptor(
-            root, artifact_path, "installed content-addressed artifact for %s" % item_id,
+        try:
+            os.link(
+                temporary_name, artifact_name,
+                src_dir_fd=root_descriptor, dst_dir_fd=artifacts_descriptor,
+                follow_symlinks=False,
+            )
+        except FileExistsError:
+            existing_digest, existing_length = sha256_private_file_at(
+                artifacts_descriptor, artifact_name,
+                "existing content-addressed artifact for %s" % item_id,
+            )
+            if existing_digest != observed or existing_length != length:
+                die("content-addressed artifact collision for %s at sha256-%s" % (item_id, observed))
+            os.unlink(temporary_name, dir_fd=root_descriptor)
+            return
+        installed_descriptor = open_private_file_at(
+            artifacts_descriptor, artifact_name,
+            "installed content-addressed artifact for %s" % item_id,
             require_single_link=False,
         )
         try:
@@ -701,13 +941,38 @@ def install_artifact_once(
             installed_info = os.fstat(installed_descriptor)
             if (installed_info.st_dev, installed_info.st_ino) != (source_info.st_dev, source_info.st_ino):
                 die("secure temporary artifact changed before installation for %s" % item_id)
-            temporary.unlink()
+            os.unlink(temporary_name, dir_fd=root_descriptor)
             if os.fstat(installed_descriptor).st_nlink != 1:
                 die("installed content-addressed artifact for %s has unexpected links" % item_id)
         finally:
             os.close(installed_descriptor)
-        return
-    temporary.unlink()
+    finally:
+        os.close(artifacts_descriptor)
+
+
+def install_artifact_once(
+    root: Path, temporary: Path, source_descriptor: int, artifact_path: Path,
+    item_id: str, observed: str, length: int
+) -> None:
+    """Atomically install an immutable artifact without pathname-based parent reuse."""
+    try:
+        temporary_relative = temporary.relative_to(root)
+        artifact_relative = artifact_path.relative_to(root)
+    except ValueError:
+        die("artifact installation path escapes the private evidence root")
+    if len(temporary_relative.parts) != 1 or artifact_relative.parts != (
+        "artifacts", "sha256-" + observed,
+    ):
+        die("artifact installation paths do not match the content-addressed layout")
+    root_descriptor = open_private_directory_descriptor(root, root, "artifact installation root")
+    assert root_descriptor is not None
+    try:
+        install_artifact_once_at(
+            root_descriptor, temporary_relative.parts[0], source_descriptor,
+            artifact_relative.parts[-1], item_id, observed, length,
+        )
+    finally:
+        os.close(root_descriptor)
 
 
 def download_exact(item: Dict[str, Any], root: Path) -> Dict[str, Any]:
@@ -739,9 +1004,9 @@ def download_exact(item: Dict[str, Any], root: Path) -> Dict[str, Any]:
         response_encoding = response.headers.get("Content-Encoding", "identity").lower()
         if response_encoding != descriptor_metadata["content_encoding"]:
             die("Content-Encoding mismatch for %s" % item["id"])
-        ensure_private_directory(root)
-        file_descriptor, temporary_name = tempfile.mkstemp(prefix="prefetch-", dir=str(root))
-        temporary = Path(temporary_name)
+        root_descriptor = open_private_directory_descriptor(root, root, "download evidence root")
+        assert root_descriptor is not None
+        file_descriptor, temporary_name = create_private_temporary_at(root_descriptor, "prefetch-")
         try:
             digest = hashlib.sha256()
             length = 0
@@ -765,13 +1030,16 @@ def download_exact(item: Dict[str, Any], root: Path) -> Dict[str, Any]:
                 observed = digest.hexdigest()
                 if observed != expected["sha256"] or length != expected["byte_length"]:
                     die("byte identity mismatch for %s (got %s / %d)" % (item["id"], observed, length))
-                artifact_path = root / "artifacts" / ("sha256-%s" % observed)
-                install_artifact_once(
-                    root, temporary, destination.fileno(), artifact_path, item["id"], observed, length
+                install_artifact_once_at(
+                    root_descriptor, temporary_name, destination.fileno(), "sha256-%s" % observed,
+                    item["id"], observed, length,
                 )
         finally:
-            if temporary.exists():
-                temporary.unlink()
+            try:
+                os.unlink(temporary_name, dir_fd=root_descriptor)
+            except FileNotFoundError:
+                pass
+            os.close(root_descriptor)
     observation = {
         "observation_version": "phase0-acquisition-observation-v1",
         "artifact_id": item["id"],
@@ -908,21 +1176,33 @@ def load_observations(root: Path, policy: Dict[str, Any]) -> List[Dict[str, Any]
 
 def load_optional_records(root: Path, directory: str) -> List[Dict[str, Any]]:
     records_path = root / directory
-    if not records_path.exists():
+    descriptor = open_private_directory_descriptor(
+        root, records_path, "%s records" % directory, missing_ok=True
+    )
+    if descriptor is None:
         return []
-    if not records_path.is_dir():
-        die("%s must be a directory when present" % records_path)
-    records = []
-    for path in sorted(records_path.glob("*.json")):
-        record = load_private_json(root, path, "%s record" % directory)
-        if not isinstance(record, dict):
-            die("%s must contain JSON objects" % path)
-        if directory == "failures":
-            expected_name = "sha256-" + sha256_bytes(jcs_bytes(record)) + ".json"
-            if path.name != expected_name:
-                die("failure record does not have its content-addressed filename")
-        records.append(record)
-    return records
+    try:
+        names = sorted(os.listdir(descriptor))
+        if any(not name.endswith(".json") for name in names):
+            die("%s contains an unexpected non-JSON entry" % directory)
+        records = []
+        for name in names:
+            record = parse_private_json(
+                read_private_file_at(descriptor, name, "%s record" % directory),
+                "%s record" % directory,
+            )
+            if not isinstance(record, dict):
+                die("%s must contain JSON objects" % directory)
+            if directory == "failures":
+                expected_name = "sha256-" + sha256_bytes(jcs_bytes(record)) + ".json"
+                if name != expected_name:
+                    die("failure record does not have its content-addressed filename")
+            records.append(record)
+        if sorted(os.listdir(descriptor)) != names:
+            die("%s records changed while being sealed" % directory)
+        return records
+    finally:
+        os.close(descriptor)
 
 
 def validate_optional_policy_records(
@@ -1048,16 +1328,20 @@ def validate_lock_inventory_payload(payload: Dict[str, Any], schema: Any) -> Non
     validate_schema_value(payload, schema, schema, "$")
 
 
-def seal(policy: Dict[str, Any], root: Path, schema: Path, source_commit: str) -> str:
+def seal(
+    policy: Dict[str, Any], root: Path, schema: Path, source_commit: str,
+    expected_schema_digest: str | None = None, expected_host_baseline_digest: str | None = None,
+) -> str:
     policy = validate_policy(policy)
     if policy["policy_version"] != "phase0-exact-byte-v1":
         die("sealing requires a reviewed phase0-exact-byte-v1 policy")
     if not HEX_COMMIT_RE.fullmatch(source_commit):
         die("source commit must be a full lowercase SHA")
     ensure_private_directory(root)
-    schema_definition = load_json(schema)
-    schema_bytes = read_schema_bytes(schema)
-    environment_ref = load_host_baseline(root)
+    schema_definition, schema_bytes = load_reviewed_json_document(
+        schema, expected_schema_digest, "schema"
+    )
+    environment_ref = load_host_baseline(root, expected_host_baseline_digest)
     observations = load_observations(root, policy)
     inventory = []
     for observation in observations:
@@ -1106,19 +1390,19 @@ def seal(policy: Dict[str, Any], root: Path, schema: Path, source_commit: str) -
     payload_address = "evp1:sha256:" + sha256_bytes(b"docproc:evidence-payload:v1\x00" + jcs_bytes(payload))
     envelope = {
         "envelope_version": "docproc:evidence-envelope-v1",
-        "evidence_profile": "phase0-admission",
+        "evidence_profile": "phase0-admission-review-candidate",
         "payload_address": payload_address,
-        "admission_scope": "base-and-primary-candidate-admission",
+        "review_scope": "base-and-primary-candidate-admission-review",
         "policy_digest": payload["policy_digest"],
         "input_ids": [row["artifact_id"] for row in inventory],
         "environment": {
-            "kind": "phase0-admission",
+            "kind": "phase0-admission-review-candidate",
             "policy_digest": payload["policy_digest"],
             "host_baseline_ref": environment_ref,
         },
         "outcome": "pending-human-admission-review",
         "specification_refs": sorted(source["commit"] for source in source_decisions),
-        "artifact_bindings": [{"role": "admitted-artifact", "artifact_address": row["artifact_descriptor"]["address"]} for row in inventory],
+        "artifact_bindings": [{"role": "acquired-candidate-byte", "artifact_address": row["artifact_descriptor"]["address"]} for row in inventory],
         "content_classification": "metadata-only",
         "publication_disposition": "private-only",
     }
@@ -1133,7 +1417,7 @@ def seal(policy: Dict[str, Any], root: Path, schema: Path, source_commit: str) -
         "",
         "- Evidence address: `%s`" % evidence_address,
         "- Payload address: `%s`" % payload_address,
-        "- Scope: base and primary-candidate admission only; not final Gate LIC.",
+        "- Scope: base and primary-candidate admission review candidate only; no artifact is admitted.",
         "- Content classification: metadata-only.",
         "- Publication disposition: private-only.",
         "- Artifacts: %s." % ", ".join(row["artifact_id"] for row in inventory),
@@ -1150,7 +1434,7 @@ def validate_phase0_envelope(envelope: Any, payload: Dict[str, Any], expected_bi
     if not isinstance(envelope, dict):
         die("evidence envelope is invalid")
     required = {
-        "envelope_version", "evidence_profile", "payload_address", "admission_scope", "policy_digest",
+        "envelope_version", "evidence_profile", "payload_address", "review_scope", "policy_digest",
         "input_ids", "environment", "outcome", "specification_refs", "artifact_bindings",
         "content_classification", "publication_disposition", "evidence_address",
     }
@@ -1158,14 +1442,14 @@ def validate_phase0_envelope(envelope: Any, payload: Dict[str, Any], expected_bi
         die("evidence envelope has an invalid member set")
     if (
         envelope["envelope_version"] != "docproc:evidence-envelope-v1"
-        or envelope["evidence_profile"] != "phase0-admission"
-        or envelope["admission_scope"] != "base-and-primary-candidate-admission"
+        or envelope["evidence_profile"] != "phase0-admission-review-candidate"
+        or envelope["review_scope"] != "base-and-primary-candidate-admission-review"
         or envelope["policy_digest"] != payload["policy_digest"]
         or envelope["outcome"] != "pending-human-admission-review"
         or envelope["content_classification"] != "metadata-only"
         or envelope["publication_disposition"] != "private-only"
         or envelope["environment"] != {
-            "kind": "phase0-admission",
+            "kind": "phase0-admission-review-candidate",
             "policy_digest": payload["policy_digest"],
             "host_baseline_ref": payload["environment_ref"],
         }
@@ -1209,11 +1493,15 @@ def validate_payload_policy_binding(payload: Dict[str, Any], policy: Dict[str, A
     return expected_items
 
 
-def verify(root: Path, evidence_address: str, schema: Path, policy: Dict[str, Any]) -> None:
+def verify(
+    root: Path, evidence_address: str, schema: Path, policy: Dict[str, Any],
+    expected_schema_digest: str | None = None, expected_host_baseline_digest: str | None = None,
+) -> None:
     if not ADDRESS_RE.fullmatch(evidence_address) or not evidence_address.startswith("evr1:"):
         die("invalid evidence address")
-    schema_definition = load_json(schema)
-    schema_bytes = read_schema_bytes(schema)
+    schema_definition, schema_bytes = load_reviewed_json_document(
+        schema, expected_schema_digest, "schema"
+    )
     record = root / "records" / evidence_address.replace(":", "_")
     payload = load_private_json(root, record / "payload.json", "sealed payload")
     envelope = load_private_json(root, record / "envelope.json", "sealed envelope")
@@ -1222,7 +1510,7 @@ def verify(root: Path, evidence_address: str, schema: Path, policy: Dict[str, An
     if not isinstance(envelope, dict):
         die("evidence envelope is invalid")
     validate_lock_inventory_payload(payload, schema_definition)
-    if payload["environment_ref"] != load_host_baseline(root):
+    if payload["environment_ref"] != load_host_baseline(root, expected_host_baseline_digest):
         die("sealed host baseline does not match the retained machine evidence")
     if payload["payload_schema_digest"] != "sha256:" + sha256_bytes(schema_bytes):
         die("payload schema digest mismatch")
@@ -1266,7 +1554,7 @@ def verify(root: Path, evidence_address: str, schema: Path, policy: Dict[str, An
         )
         if descriptor_record["address"] != calculated_descriptor["address"]:
             die("artifact descriptor address mismatch")
-        expected_bindings.append({"role": "admitted-artifact", "artifact_address": calculated_descriptor["address"]})
+        expected_bindings.append({"role": "acquired-candidate-byte", "artifact_address": calculated_descriptor["address"]})
         artifact = root / "artifacts" / ("sha256-" + observation["content_digest"].removeprefix("sha256:"))
         digest, length = sha256_private_file(
             root, artifact, "content-addressed artifact for %s" % row["artifact_id"]
@@ -1356,22 +1644,34 @@ def main(argv: List[str]) -> int:
     policy_cmd.add_argument("--policy", type=Path, required=True)
     closure_cmd = sub.add_parser("validate-closure")
     closure_cmd.add_argument("--catalog", type=Path, required=True)
+    closure_cmd.add_argument("--catalog-digest", required=True)
     closure_cmd.add_argument("--policy", type=Path, required=True)
+    closure_cmd.add_argument("--policy-digest", required=True)
     prefetch_cmd = sub.add_parser("prefetch")
     prefetch_cmd.add_argument("--catalog", type=Path, required=True)
+    prefetch_cmd.add_argument("--catalog-digest", required=True)
     prefetch_cmd.add_argument("--policy", type=Path, required=True)
+    prefetch_cmd.add_argument("--policy-digest", required=True)
     prefetch_cmd.add_argument("--root", required=True, help="private evidence root outside this Git worktree")
     seal_cmd = sub.add_parser("seal")
     seal_cmd.add_argument("--catalog", type=Path, required=True)
+    seal_cmd.add_argument("--catalog-digest", required=True)
     seal_cmd.add_argument("--policy", type=Path, required=True)
+    seal_cmd.add_argument("--policy-digest", required=True)
     seal_cmd.add_argument("--root", required=True)
     seal_cmd.add_argument("--schema", type=Path, required=True)
+    seal_cmd.add_argument("--schema-digest", required=True)
+    seal_cmd.add_argument("--host-baseline-digest", required=True)
     seal_cmd.add_argument("--source-commit", required=True)
     verify_cmd = sub.add_parser("verify")
     verify_cmd.add_argument("--root", required=True)
     verify_cmd.add_argument("--catalog", type=Path, required=True)
+    verify_cmd.add_argument("--catalog-digest", required=True)
     verify_cmd.add_argument("--policy", type=Path, required=True)
+    verify_cmd.add_argument("--policy-digest", required=True)
     verify_cmd.add_argument("--schema", type=Path, required=True)
+    verify_cmd.add_argument("--schema-digest", required=True)
+    verify_cmd.add_argument("--host-baseline-digest", required=True)
     verify_cmd.add_argument("--evidence-address", required=True)
     host_cmd = sub.add_parser("capture-host-baseline")
     host_cmd.add_argument("--root", required=True, help="private evidence root outside this Git worktree")
@@ -1379,26 +1679,35 @@ def main(argv: List[str]) -> int:
     try:
         if args.command == "capture-host-baseline":
             root = safe_root(args.root)
-            write_json_once(root, root / "host-baseline.json", host_record())
+            record_bytes = jcs_bytes(host_record()) + b"\n"
+            write_once(root, root / "host-baseline.json", record_bytes)
+            print("sha256:" + sha256_bytes(record_bytes))
         elif args.command == "verify":
-            catalog = validate_policy(load_json(args.catalog))
-            policy = validate_policy(load_json(args.policy))
+            catalog = validate_policy(load_reviewed_json(args.catalog, args.catalog_digest, "catalog"))
+            policy = validate_policy(load_reviewed_json(args.policy, args.policy_digest, "policy"))
             validate_closure(catalog, policy)
-            verify(safe_root(args.root), args.evidence_address, args.schema, policy)
+            verify(
+                safe_root(args.root), args.evidence_address, args.schema, policy,
+                expected_schema_digest=args.schema_digest,
+                expected_host_baseline_digest=args.host_baseline_digest,
+            )
+        elif args.command == "validate-policy":
+            validate_policy(load_json(args.policy))
+            print("policy valid; no network request made")
         else:
-            policy = validate_policy(load_json(args.policy))
-            if args.command == "validate-policy":
-                print("policy valid; no network request made")
-            elif args.command == "validate-closure":
-                catalog = validate_policy(load_json(args.catalog))
-                validate_closure(catalog, policy)
+            catalog = validate_policy(load_reviewed_json(args.catalog, args.catalog_digest, "catalog"))
+            policy = validate_policy(load_reviewed_json(args.policy, args.policy_digest, "policy"))
+            validate_closure(catalog, policy)
+            if args.command == "validate-closure":
                 print("exact-byte policy covers only the base/primary catalog; no network request made")
             elif args.command == "prefetch":
-                validate_closure(validate_policy(load_json(args.catalog)), policy)
                 prefetch(policy, safe_root(args.root))
             elif args.command == "seal":
-                validate_closure(validate_policy(load_json(args.catalog)), policy)
-                seal(policy, safe_root(args.root), args.schema, args.source_commit)
+                seal(
+                    policy, safe_root(args.root), args.schema, args.source_commit,
+                    expected_schema_digest=args.schema_digest,
+                    expected_host_baseline_digest=args.host_baseline_digest,
+                )
         return 0
     except LockError as exc:
         print("phase0-lock: %s" % exc, file=sys.stderr)

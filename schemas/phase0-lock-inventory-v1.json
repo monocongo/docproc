@@ -55,13 +55,23 @@
       },
       "additionalProperties": false
     },
+    "originProvenance": {
+      "type": "object",
+      "required": ["artifact_id", "content_digest"],
+      "properties": {
+        "artifact_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+$"},
+        "content_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
     "origin": {
       "type": "object",
       "required": ["authority", "revision", "immutable_reference"],
       "properties": {
         "authority": {"type": "string", "minLength": 1},
         "revision": {"type": "string", "minLength": 1},
-        "immutable_reference": {"type": "string", "pattern": "^(git:[0-9a-f]{40,64}|sha256:[0-9a-f]{64})$"}
+        "immutable_reference": {"type": "string", "pattern": "^(git:[0-9a-f]{40,64}|sha256:[0-9a-f]{64})$"},
+        "provenance": {"$ref": "#/$defs/originProvenance"}
       },
       "additionalProperties": false
     },
