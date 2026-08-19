@@ -11,14 +11,14 @@ The control implements the Phase 0 boundary from the approved blueprint (`367454
 - `lock/base-primary-policy.json` is an admission **catalog**, not an approval. It names only the base graph and the primary `qwen3.5:9b-q4_K_M` candidate. It does not name either fallback as an initial acquisition.
 - Every catalog item is `pending-human-review`. The tool refuses to issue any network request while that is true. In particular, it preserves the metadata-only Heron/TableFormer/RapidOCR evidence and the Ollama conversion-lineage gap as exceptions requiring review; it does not call either verified provenance.
 - The catalog also makes the unselected SBOM/license tool an explicit unresolved input. A scanner must be separately selected, version-pinned, acquired, and reviewed; this harness must not quietly install one.
-- `lock/phase0_lock.py` rejects floating or credential-bearing URLs, redirects, unreviewed licenses, `NOASSERTION`, graph entries not explicitly approved for acquisition, byte/size mismatches, and any evidence root inside the Git worktree.
-- `schemas/phase0-lock-inventory-v1.json` fixes the payload shape. The tool produces content-addressed payload (`evp1`), artifact-descriptor (`art1`), and envelope (`evr1`) addresses using the README's domain-separated SHA-256 preimages. It limits records to the integer/string JSON subset that it can canonicalize correctly without introducing an unadmitted dependency.
-- `lock/network-deny-pf.sh` is a macOS PF wrapper for a measured rerun. It refuses to run if macOS's active PF configuration does not invoke its `com.apple/*` anchor, prints the actual loaded rules, permits only `lo0`, and blocks IPv4/IPv6 host egress for the child command. It needs a human administrator review and does not claim that Docker Desktop VM traffic is covered; later service runs also need a no-egress container-network control.
+- `lock/phase0_lock.py` rejects credential- or query-bearing URLs, redirects, unreviewed licenses, `NOASSERTION`, non-canonical JSON, graph entries not explicitly approved for acquisition, byte/size or encoding mismatches, and any evidence root inside the checkout that contains this harness. An approved exact-byte row also requires reviewed artifact-descriptor metadata, an explicit license expression, reviewed copyright/notice statuses, and content-digest references to same-component, role-typed, textual approved license/notice/metadata/review-record bytes. A `sha256:` origin reference must equal the acquired digest; a `git:` reference additionally requires a same-component `origin-provenance` byte. The CLI pins the resolved private root once from `/`, and private evidence reads, writes, temporary downloads, and artifact installation remain relative to that descriptor rather than reusing checked parent pathnames.
+- `schemas/phase0-lock-inventory-v1.json` fixes the complete nested payload shape. The tool produces content-addressed payload (`evp1`), artifact-descriptor (`art1`), and envelope (`evr1`) addresses using the domain-separated SHA-256 preimages defined in `lock/phase0_lock.py`, verifies the schema and descriptor bindings on read, and creates owner-only private evidence directories/files. It limits records to the integer/string JSON subset that it can canonicalize correctly without introducing an unadmitted dependency.
+- `lock/network-deny-pf.sh` is deliberately disabled. An anchor in an arbitrary macOS PF ruleset cannot attest complete egress denial because earlier anchors, stateful inbound traffic, and escaped descendants can bypass it. The script performs no PF mutation and refuses every measured command; a separately reviewed isolated guest or container-network boundary is required before any parser/VLM rerun. It does not claim that Docker Desktop VM traffic is covered.
 - Host-baseline capture hashes listed host tools but does not execute them merely to learn a version. Exact tool versions are an admission-policy input; only the fixed macOS platform probes are executed for the baseline.
 
 ## Human review required before acquisition
 
-The machine has sufficient disk and the expected Apple M5/32 GB hardware, but it currently has no admitted Phase 0 environment. The observed local baseline is not an admission record: macOS is `26.6.1 (25G76)`, the installed `uv` is `0.12.3`, Docker's client is present but its daemon is unavailable, and `ollama` and `qpdf` are absent.
+This checkout has no admitted Phase 0 environment. Host hardware, operating-system, installed-tool, and service observations are private-only baseline evidence; they are intentionally not recorded in this repository or this document.
 
 A human reviewer must make and retain each of these decisions before changing an artifact to `approved-for-acquisition` in an exact-byte prefetch policy:
 
@@ -29,52 +29,73 @@ A human reviewer must make and retain each of these decisions before changing an
 5. Hand #21 the NAF source/terms review. NAF bytes, converted PDFs, ledgers, and image-bearing output remain outside Git and private.
 6. Record the authorization/T0 source and select a private evidence root outside this checkout. The root must not be synced, published, or committed.
 
-The catalog deliberately cannot be edited into a runnable prefetch file by changing just a status: an approved byte record requires an exact HTTPS URL, expected SHA-256, expected byte length, authoritative immutable origin, reviewed license evidence class, distribution mode, and publication disposition. Components with several downloaded bytes must expand to several records. This makes an incomplete resolution fail before the first network request.
+The catalog deliberately cannot be edited into a runnable prefetch file by changing just a status: an approved byte record requires an exact query-free HTTPS URL, expected SHA-256, expected byte length, authoritative immutable origin reference, reviewed license evidence class, reviewed descriptor metadata (media type and content encoding, plus charset/format schema when applicable), distribution mode, and publication disposition. Every record for a required catalog component must itself be required and approved. Components with several downloaded bytes must expand to several records. This makes an incomplete resolution fail before the first network request.
 
 ## Controlled workflow
 
-All commands below are deliberately manual. They must be run only after the review above and must retain their stdout/stderr as an acquisition or preflight observation. `PRIVATE_ROOT` must be a private directory outside the repository.
+All commands below are deliberately manual. They must be run only after the review above and must retain their stdout/stderr as an acquisition or preflight observation. `PRIVATE_ROOT` must be a private directory outside the repository. Before a control file is used for closure, acquisition, sealing, or verification, a human reviewer must independently retain the exact SHA-256 of the catalog, exact-byte policy file, schema, and private host baseline plus the producer commit; supplying identities calculated from unreviewed inputs in the same command is not review. Seal and verify require these five `ReviewedControls`, and the candidate payload content-binds all of them in addition to the canonical policy-object digest.
 
 ```sh
 PRIVATE_ROOT="$HOME/.local/share/docproc-phase0"
 python3 phase0/lock/phase0_lock.py validate-policy \
   --policy phase0/lock/base-primary-policy.json
-python3 phase0/lock/phase0_lock.py capture-host-baseline \
-  --root "$PRIVATE_ROOT"
+HOST_BASELINE_DIGEST="$(python3 phase0/lock/phase0_lock.py capture-host-baseline \
+  --root "$PRIVATE_ROOT")"
+# Retain and review HOST_BASELINE_DIGEST independently before later use.
 ```
 
-Create a reviewed **exact-byte** policy outside Git with `policy_version` `phase0-exact-byte-v1`. It uses the same shape as `base-primary-policy.json`, adds a `component_id` naming one catalog row, and gives every required entry `approved-for-acquisition`, an exact publisher URL, and matching digest/length. It must include the complete wheel/native/model/OCI/layer closure—not merely this catalog's component rows. Then:
+Create a reviewed **exact-byte** policy outside Git with `policy_version` `phase0-exact-byte-v1`. It uses the same shape as `base-primary-policy.json`, adds a `component_id` naming one catalog row, and gives every required entry `approved-for-acquisition`, an exact publisher URL, matching digest/length, and complete license evidence. License evidence references name a same-component approved exact-byte row with a role-compatible kind (`license-text`, `copyright-evidence`, `notice`, `license-metadata`, or `license-review-record`), textual identity encoding, and matching content digest. Ordinary reviewed rows require exact license-text evidence, while a reviewed exception requires metadata or license-text evidence plus an exact review-record byte. Copyright and notice status are explicit, and `present` status requires the corresponding evidence role. Git origins require a matching `origin-provenance` evidence row; SHA-256 origins must identify their acquired byte directly. The policy must include the complete wheel/native/model/OCI/layer/license/notice closure—not merely this catalog's component rows. Then retrieve `CATALOG_DIGEST` and `POLICY_DIGEST` from the independent human review record:
 
 ```sh
 python3 phase0/lock/phase0_lock.py validate-closure \
   --catalog phase0/lock/base-primary-policy.json \
-  --policy "$PRIVATE_ROOT/reviewed-exact-byte-policy.json"
+  --catalog-digest "$CATALOG_DIGEST" \
+  --policy "$PRIVATE_ROOT/reviewed-exact-byte-policy.json" \
+  --policy-digest "$POLICY_DIGEST"
 python3 phase0/lock/phase0_lock.py prefetch \
   --catalog phase0/lock/base-primary-policy.json \
+  --catalog-digest "$CATALOG_DIGEST" \
   --policy "$PRIVATE_ROOT/reviewed-exact-byte-policy.json" \
+  --policy-digest "$POLICY_DIGEST" \
   --root "$PRIVATE_ROOT"
-
-# Run a listed preflight denial probe first, then the actual parser/VLM harness.
-# Retain PF rules, command, exit status, and the expected rejected external probe.
-phase0/lock/network-deny-pf.sh -- \
-  sh -c 'curl --connect-timeout 2 --max-time 3 https://example.com && exit 1 || exit 0'
 ```
 
-Only after the selected SBOM/license tool has scanned the resolved closure, notices have been generated, every required observation is present, and the final policy/source commit are fixed, seal the private evidence record:
+`network-deny-pf.sh` currently refuses every command rather than make an unverifiable no-egress claim. Do not run a parser/VLM harness until a separately reviewed isolated guest or container-network boundary is available. That future measured rerun must include a denial probe that fails if an external connection succeeds, for example:
+
+```sh
+if curl --connect-timeout 2 --max-time 3 https://example.com; then
+  echo "unexpected egress" >&2
+  exit 1
+fi
+```
+
+Only after the selected SBOM/license tool has scanned the resolved closure, notices have been generated, every required observation is present, and the final policy/source commit are fixed, retrieve `SCHEMA_DIGEST` and `REVIEWED_SOURCE_COMMIT` from the independent review record and seal the private evidence record:
 
 ```sh
 python3 phase0/lock/phase0_lock.py seal \
   --catalog phase0/lock/base-primary-policy.json \
+  --catalog-digest "$CATALOG_DIGEST" \
   --policy "$PRIVATE_ROOT/reviewed-exact-byte-policy.json" \
+  --policy-digest "$POLICY_DIGEST" \
   --root "$PRIVATE_ROOT" \
   --schema schemas/phase0-lock-inventory-v1.json \
-  --source-commit "$(git rev-parse HEAD)"
+  --schema-digest "$SCHEMA_DIGEST" \
+  --host-baseline-digest "$HOST_BASELINE_DIGEST" \
+  --source-commit "$REVIEWED_SOURCE_COMMIT"
 python3 phase0/lock/phase0_lock.py verify \
   --root "$PRIVATE_ROOT" \
+  --catalog phase0/lock/base-primary-policy.json \
+  --catalog-digest "$CATALOG_DIGEST" \
+  --policy "$PRIVATE_ROOT/reviewed-exact-byte-policy.json" \
+  --policy-digest "$POLICY_DIGEST" \
+  --schema schemas/phase0-lock-inventory-v1.json \
+  --schema-digest "$SCHEMA_DIGEST" \
+  --host-baseline-digest "$HOST_BASELINE_DIGEST" \
+  --producer-commit "$REVIEWED_SOURCE_COMMIT" \
   --evidence-address 'evr1:sha256:...'
 ```
 
-`seal` creates the private `EVID-LOCK-INVENTORY-001` envelope and a human summary but intentionally returns `go-candidate-pending-human-approval`, not a Gate LIC Go. Final LIC reconciliation must additionally cover scanner results, notices, SBOMs, all actual OCI/model closures, approved exceptions, and an observed parser/VLM rerun with egress denied. That final outcome belongs in #25.
+`seal` requires and content-binds the private `host-baseline.json` produced above, then creates the private `EVID-LOCK-INVENTORY-001` envelope and human summary using the `phase0-admission-review-candidate` profile, `acquired-candidate-byte` artifact role, and outcome `pending-human-admission-review`. Its acquisition rows are explicitly `unauthenticated-harness-observation`: same-UID files cannot prove independent network capture, so accepted #20 evidence must additionally bind a separately reviewed capture-boundary receipt. The record admits no artifact and is not a Gate LIC outcome. Final LIC reconciliation must additionally cover scanner results, notices, SBOMs, all actual OCI/model closures, approved exceptions, and an observed parser/VLM rerun with egress denied. That final outcome belongs in #25.
 
 ## Prohibited behavior
 

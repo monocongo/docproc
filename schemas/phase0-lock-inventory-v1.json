@@ -10,7 +10,10 @@
     "kind",
     "source_commit",
     "policy_digest",
+    "reviewed_controls",
     "source_decisions",
+    "environment_ref",
+    "acquisition_attestation",
     "inventory",
     "failures",
     "exclusions",
@@ -25,13 +28,239 @@
     "kind": {"const": "lock-inventory"},
     "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
     "policy_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
-    "source_decisions": {"type": "array", "minItems": 1},
-    "inventory": {"type": "array", "minItems": 1},
-    "failures": {"type": "array"},
-    "exclusions": {"type": "array"},
-    "reviewed_exceptions": {"type": "array"},
+    "reviewed_controls": {"$ref": "#/$defs/reviewedControls"},
+    "source_decisions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/sourceDecision"}},
+    "environment_ref": {"$ref": "#/$defs/environmentRef"},
+    "acquisition_attestation": {"const": "unauthenticated-harness-observation"},
+    "inventory": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/inventoryItem"}},
+    "failures": {"type": "array", "items": {"$ref": "#/$defs/failure"}},
+    "exclusions": {"type": "array", "items": {"$ref": "#/$defs/exclusion"}},
+    "reviewed_exceptions": {"type": "array", "items": {"$ref": "#/$defs/reviewedException"}},
     "content_classification": {"const": "metadata-only"},
     "publication_disposition": {"const": "private-only"}
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "reviewedControls": {
+      "type": "object",
+      "required": [
+        "catalog_digest",
+        "policy_file_digest",
+        "schema_digest",
+        "host_baseline_digest",
+        "producer_commit"
+      ],
+      "properties": {
+        "catalog_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "policy_file_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "schema_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "host_baseline_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "producer_commit": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"}
+      },
+      "additionalProperties": false
+    },
+    "environmentRef": {
+      "type": "object",
+      "required": ["kind", "content_digest"],
+      "properties": {
+        "kind": {"const": "phase0-host-baseline-v1"},
+        "content_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "sourceDecision": {
+      "type": "object",
+      "required": ["id", "commit"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"}
+      },
+      "additionalProperties": false
+    },
+    "originProvenance": {
+      "type": "object",
+      "required": ["artifact_id", "content_digest"],
+      "properties": {
+        "artifact_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+$"},
+        "content_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "origin": {
+      "type": "object",
+      "required": ["authority", "revision", "immutable_reference"],
+      "properties": {
+        "authority": {"type": "string", "minLength": 1},
+        "revision": {"type": "string", "minLength": 1},
+        "immutable_reference": {"type": "string", "pattern": "^(git:[0-9a-f]{40,64}|sha256:[0-9a-f]{64})$"},
+        "provenance": {"$ref": "#/$defs/originProvenance"}
+      },
+      "additionalProperties": false
+    },
+    "licenseEvidenceRef": {
+      "type": "object",
+      "required": ["role", "artifact_id", "content_digest"],
+      "properties": {
+        "role": {"type": "string", "pattern": "^(license-text|copyright|notice|metadata|review-record)$"},
+        "artifact_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+$"},
+        "content_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "license": {
+      "type": "object",
+      "required": [
+        "evidence_class",
+        "review_status",
+        "license_expression",
+        "copyright_status",
+        "notice_status",
+        "evidence_refs"
+      ],
+      "properties": {
+        "evidence_class": {"type": "string", "minLength": 1},
+        "review_status": {"type": "string", "pattern": "^(reviewed|reviewed-exception)$"},
+        "license_expression": {"type": "string", "minLength": 1},
+        "copyright_status": {"type": "string", "pattern": "^(present|reviewed-not-present)$"},
+        "notice_status": {"type": "string", "pattern": "^(present|reviewed-not-present)$"},
+        "evidence_refs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/licenseEvidenceRef"}}
+      },
+      "additionalProperties": false
+    },
+    "observation": {
+      "type": "object",
+      "required": [
+        "observation_version",
+        "artifact_id",
+        "requested_url",
+        "final_url",
+        "method",
+        "status",
+        "content_digest",
+        "byte_length",
+        "content_type",
+        "observed_started_at_utc",
+        "observed_completed_at_utc",
+        "redirects",
+        "network_result"
+      ],
+      "properties": {
+        "observation_version": {"const": "phase0-acquisition-observation-v1"},
+        "artifact_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+$"},
+        "requested_url": {"type": "string", "pattern": "^https://[^?#]+$"},
+        "final_url": {"type": "string", "pattern": "^https://[^?#]+$"},
+        "method": {"const": "GET"},
+        "status": {"const": 200},
+        "content_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "byte_length": {"type": "integer", "minimum": 0},
+        "content_type": {"type": "string"},
+        "observed_started_at_utc": {"type": "string", "pattern": ".*Z$"},
+        "observed_completed_at_utc": {"type": "string", "pattern": ".*Z$"},
+        "redirects": {"type": "array", "maxItems": 0},
+        "network_result": {"const": "harness-recorded-request-completed-unauthenticated"}
+      },
+      "additionalProperties": false
+    },
+    "formatSchema": {
+      "type": "object",
+      "required": ["id", "version", "digest"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "descriptor": {
+      "type": "object",
+      "required": ["descriptor_version", "content_digest", "byte_length", "media_type", "content_encoding"],
+      "properties": {
+        "descriptor_version": {"const": "docproc-artifact-descriptor-v1"},
+        "content_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "byte_length": {"type": "integer", "minimum": 0},
+        "media_type": {"type": "string", "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$"},
+        "content_encoding": {"type": "string", "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*$"},
+        "charset": {"type": "string", "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*$"},
+        "format_schema": {"$ref": "#/$defs/formatSchema"}
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": ["media_type"],
+            "properties": {
+              "media_type": {"type": "string", "pattern": "^(text/.+|application/(json|xml|javascript|sql|graphql)|application/.+\\+(json|xml))$"}
+            }
+          },
+          "then": {"required": ["charset"]}
+        }
+      ]
+    },
+    "artifactDescriptor": {
+      "type": "object",
+      "required": ["address", "descriptor"],
+      "properties": {
+        "address": {"type": "string", "pattern": "^art1:sha256:[0-9a-f]{64}$"},
+        "descriptor": {"$ref": "#/$defs/descriptor"}
+      },
+      "additionalProperties": false
+    },
+    "inventoryItem": {
+      "type": "object",
+      "required": [
+        "artifact_id",
+        "origin",
+        "license",
+        "distribution_mode",
+        "publication_disposition",
+        "observation",
+        "artifact_descriptor"
+      ],
+      "properties": {
+        "artifact_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+$"},
+        "origin": {"$ref": "#/$defs/origin"},
+        "license": {"$ref": "#/$defs/license"},
+        "distribution_mode": {"type": "string", "pattern": "^(source-only|direct-upstream-pull|host-installed|manual-data-acquisition)$"},
+        "publication_disposition": {"type": "string", "pattern": "^(metadata-only|do-not-publish|private-only)$"},
+        "observation": {"$ref": "#/$defs/observation"},
+        "artifact_descriptor": {"$ref": "#/$defs/artifactDescriptor"}
+      },
+      "additionalProperties": false
+    },
+    "failure": {
+      "type": "object",
+      "required": ["failure_version", "artifact_id", "occurred_at_utc", "stage", "message", "content_classification", "publication_disposition"],
+      "properties": {
+        "failure_version": {"const": "phase0-acquisition-failure-v1"},
+        "artifact_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+$"},
+        "occurred_at_utc": {"type": "string", "pattern": ".*Z$"},
+        "stage": {"const": "prefetch"},
+        "message": {"const": "candidate request did not complete byte verification"},
+        "content_classification": {"const": "metadata-only"},
+        "publication_disposition": {"const": "private-only"}
+      },
+      "additionalProperties": false
+    },
+    "exclusion": {
+      "type": "object",
+      "required": ["exclusion_version", "artifact_id", "reason", "content_classification", "publication_disposition"],
+      "properties": {
+        "exclusion_version": {"const": "phase0-exclusion-v1"},
+        "artifact_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+$"},
+        "reason": {"type": "string", "minLength": 1},
+        "content_classification": {"const": "metadata-only"},
+        "publication_disposition": {"const": "private-only"}
+      },
+      "additionalProperties": false
+    },
+    "reviewedException": {
+      "type": "object",
+      "required": ["artifact_id", "license"],
+      "properties": {
+        "artifact_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+$"},
+        "license": {"$ref": "#/$defs/license"}
+      },
+      "additionalProperties": false
+    }
+  }
 }
